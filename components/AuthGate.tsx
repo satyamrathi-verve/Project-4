@@ -34,13 +34,15 @@ export function AuthGate({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="flex h-screen">
-      <Nav />
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <header className="flex flex-none items-center justify-end border-b border-slate-200 px-6 py-3 dark:border-slate-800">
+    <div className="flex h-screen print:block print:h-auto">
+      <div className="print:hidden">
+        <Nav />
+      </div>
+      <div className="flex flex-1 flex-col overflow-hidden print:block print:overflow-visible">
+        <header className="flex flex-none items-center justify-end border-b border-slate-200 px-6 py-3 dark:border-slate-800 print:hidden">
           <ThemeToggle />
         </header>
-        <main className="flex-1 overflow-y-auto p-8">{children}</main>
+        <main className="flex-1 overflow-y-auto p-8 print:overflow-visible print:p-0">{children}</main>
       </div>
     </div>
   );
