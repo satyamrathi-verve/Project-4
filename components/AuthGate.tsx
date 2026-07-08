@@ -1,39 +1,36 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { isSignedIn } from "@/lib/auth";
+import { getSession } from "@/lib/auth";
 import { Nav } from "@/components/Nav";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
-/*
-  Gates every page except /signin behind the front-end login. Shows nothing
-  while checking localStorage (avoids a flash of protected content), then
-  either the standalone Sign In page or the Nav + header + page shell.
-*/
-export function AuthGate({ children }: { children: React.ReactNode }) {
+/* Hides the app (nav + header) until signed in. The Sign In page renders
+   full-screen with no chrome; every other route needs a session or gets bounced. */
+export function AuthGate({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [ready, setReady] = useState(false);
-  const [authed, setAuthed] = useState(false);
+  const [signedIn, setSignedIn] = useState(false);
 
   useEffect(() => {
-    setAuthed(isSignedIn());
+    const session = getSession();
+    setSignedIn(Boolean(session));
     setReady(true);
-  }, [pathname]);
-
-  useEffect(() => {
-    if (ready && !authed && pathname !== "/signin") {
+    if (!session && pathname !== "/signin") {
       router.replace("/signin");
     }
-  }, [ready, authed, pathname, router]);
+  }, [pathname, router]);
 
-  if (pathname === "/signin") {
-    return <>{children}</>;
-  }
+  if (pathname === "/signin") return <>{children}</>;
 
-  if (!ready || !authed) {
-    return null;
+  if (!ready || !signedIn) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-slate-50 text-sm text-slate-400 dark:bg-slate-950 dark:text-slate-500">
+        Loading…
+      </div>
+    );
   }
 
   return (

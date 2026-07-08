@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { signIn } from "@/lib/auth";
+import { checkLogin, signIn } from "@/lib/auth";
 import { FormField, inputClass } from "@/components/FormField";
 
 export default function SignInPage() {
@@ -13,7 +13,8 @@ export default function SignInPage() {
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (signIn(username, password)) {
+    if (checkLogin(username, password)) {
+      signIn(username);
       setError(false);
       router.replace("/");
     } else {
@@ -22,14 +23,14 @@ export default function SignInPage() {
   }
 
   return (
-    <div className="flex h-screen items-center justify-center bg-slate-50">
+    <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-brand-950">
       <form
         onSubmit={handleSubmit}
-        className="w-full max-w-sm rounded-xl border border-slate-200 bg-white p-8 shadow-sm"
+        className="w-full max-w-sm rounded-xl border border-slate-200 bg-white p-8 shadow-sm dark:border-slate-800 dark:bg-slate-900"
       >
-        <p className="text-xs font-semibold uppercase tracking-widest text-brand">Verve</p>
-        <h1 className="mt-1 text-2xl font-bold text-slate-900">AR Manager</h1>
-        <p className="mt-1 text-sm text-slate-500">Sign in to continue.</p>
+        <p className="text-xs font-semibold uppercase tracking-widest text-brand dark:text-brand-300">Verve</p>
+        <h1 className="mt-1 text-xl font-bold text-slate-900 dark:text-slate-100">Sign in to AR Manager</h1>
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Use your demo login to continue.</p>
 
         <div className="mt-6 flex flex-col gap-4">
           <FormField label="Username">
@@ -51,8 +52,8 @@ export default function SignInPage() {
         </div>
 
         {error && (
-          <p className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
-            That username/password doesn&apos;t match. Try again.
+          <p className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">
+            That username or password isn&apos;t right. Try again.
           </p>
         )}
 
@@ -63,8 +64,8 @@ export default function SignInPage() {
           Sign In
         </button>
 
-        <p className="mt-4 text-center text-xs text-slate-400">
-          Demo login: <span className="font-medium text-slate-500">admin / admin123</span>
+        <p className="mt-4 text-center text-xs text-slate-400 dark:text-slate-500">
+          Demo login: <span className="font-medium text-slate-500 dark:text-slate-400">admin / admin123</span>
         </p>
       </form>
     </div>

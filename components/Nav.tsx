@@ -2,18 +2,18 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { signOut } from "@/lib/auth";
 import { ScreenIcon } from "./icons";
+import { signOut } from "@/lib/auth";
 
 /*
   Left sidebar. Only "Home" exists to start with — everything else is the roadmap
   your team builds. Each unbuilt screen shows a "build me" tag. When you finish a
   screen, flip its `built` to true (and point `href` at the route you created) so it
-  turns into a real link.
+  turns into a real link. Sign In isn't listed here — it's the pre-auth gate, not
+  an in-app destination; use the Sign out button below instead.
 */
 const LINKS: { href: string; label: string; built: boolean; icon: string }[] = [
   { href: "/", label: "Home", built: true, icon: "home" },
-  { href: "/signin", label: "Sign In", built: true, icon: "signin" },
   { href: "/masters/customers", label: "Customer Master", built: false, icon: "customers" },
   { href: "/masters/gl", label: "GL Master", built: false, icon: "gl" },
   { href: "/invoices", label: "Sales Invoices", built: false, icon: "invoices" },
@@ -29,6 +29,11 @@ const LINKS: { href: string; label: string; built: boolean; icon: string }[] = [
 export function Nav() {
   const pathname = usePathname();
   const router = useRouter();
+
+  function handleSignOut() {
+    signOut();
+    router.replace("/signin");
+  }
 
   return (
     <nav className="flex h-full w-60 flex-col gap-1 border-r border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
@@ -80,13 +85,10 @@ export function Nav() {
         );
       })}
       <button
-        type="button"
-        onClick={() => {
-          signOut();
-          router.replace("/signin");
-        }}
+        onClick={handleSignOut}
         className="mt-auto flex items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
       >
+        <ScreenIcon name="signin" className="h-[18px] w-[18px] flex-none rotate-180" />
         Sign out
       </button>
     </nav>

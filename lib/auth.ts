@@ -1,31 +1,31 @@
 /*
-  Front-end-only session gate for the Sign In screen. No Supabase auth, no
-  users table — just a small demo login list checked in the browser, with the
-  signed-in flag kept in localStorage so a page refresh stays signed in.
+  Front-end-only auth for the demo. No backend, no users table — just a small
+  built-in list of logins checked in the browser. A match sets a flag in
+  localStorage so a refresh stays signed in.
 */
 
-const STORAGE_KEY = "ar-manager-signed-in";
-
-export const DEMO_USERS = [
+export const DEMO_LOGINS = [
   { username: "admin", password: "admin123" },
   { username: "finance", password: "finance123" },
 ];
 
-export function isSignedIn(): boolean {
-  if (typeof window === "undefined") return false;
-  return window.localStorage.getItem(STORAGE_KEY) === "true";
+const SESSION_KEY = "ar-manager-session";
+
+export function checkLogin(username: string, password: string): boolean {
+  return DEMO_LOGINS.some(
+    (l) => l.username === username && l.password === password
+  );
 }
 
-export function signIn(username: string, password: string): boolean {
-  const match = DEMO_USERS.some(
-    (u) => u.username === username && u.password === password
-  );
-  if (match) {
-    window.localStorage.setItem(STORAGE_KEY, "true");
-  }
-  return match;
+export function signIn(username: string) {
+  localStorage.setItem(SESSION_KEY, username);
 }
 
 export function signOut() {
-  window.localStorage.removeItem(STORAGE_KEY);
+  localStorage.removeItem(SESSION_KEY);
+}
+
+export function getSession(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(SESSION_KEY);
 }
