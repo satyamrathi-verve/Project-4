@@ -41,35 +41,35 @@ export default function HomePage() {
         </div>
       )}
 
-      <div className="rounded-xl border border-slate-200 bg-white p-6">
-        <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+      <div className="rounded-xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-slate-900">
+        <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
           How this works
         </h3>
-        <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-slate-700">
+        <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-slate-700 dark:text-slate-300">
           <li>The database and all its data already exist in Supabase — you never touch the backend.</li>
-          <li>You point <span className="font-medium text-brand">Claude Code</span> at a screen from the list; it writes the page, you tweak it in plain English.</li>
+          <li>You point <span className="font-medium text-brand dark:text-brand-300">Claude Code</span> at a screen from the list; it writes the page, you tweak it in plain English.</li>
           <li>When a screen works, you commit &amp; push — that scores your team on the live leaderboard.</li>
-          <li>Read <code className="rounded bg-slate-100 px-1">README.md</code> for setup and the kickoff prompt to paste into Claude Code.</li>
+          <li>Read <code className="rounded bg-slate-100 px-1 dark:bg-slate-800">README.md</code> for setup and the kickoff prompt to paste into Claude Code.</li>
         </ol>
       </div>
 
-      <div className="mt-6 rounded-xl border border-slate-200 bg-white p-6">
-        <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+      <div className="mt-6 rounded-xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-slate-900">
+        <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
           The screens to build
         </h3>
-        <p className="mt-2 text-sm text-slate-500">
+        <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
           Get as far as you can — a few done well beats all of them half-broken. The
-          spine <span className="font-medium text-slate-700">Sign In → Customer Master → Invoice List → Invoice View → Receipt Entry</span> demos best.
+          spine <span className="font-medium text-slate-700 dark:text-slate-200">Sign In → Customer Master → Invoice List → Invoice View → Receipt Entry</span> demos best.
         </p>
-        <ol className="mt-4 grid list-decimal gap-x-8 gap-y-2 pl-5 text-sm text-slate-700 sm:grid-cols-2">
+        <ol className="mt-4 grid list-decimal gap-x-8 gap-y-2 pl-5 text-sm text-slate-700 dark:text-slate-300 sm:grid-cols-2">
           {ROADMAP.map((s) => (
             <li key={s}>{s}</li>
           ))}
         </ol>
       </div>
 
-      <p className="mt-6 text-sm text-slate-500">
-        Ready? Tell Claude Code: <span className="font-medium text-slate-700">&ldquo;build the Sign In screen.&rdquo;</span>
+      <p className="mt-6 text-sm text-slate-500 dark:text-slate-400">
+        Ready? Tell Claude Code: <span className="font-medium text-slate-700 dark:text-slate-200">&ldquo;build the Sign In screen.&rdquo;</span>
       </p>
     </>
   );

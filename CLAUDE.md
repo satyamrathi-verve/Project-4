@@ -21,6 +21,16 @@ Read this whole file before writing code.
    form styling, colours, loading and empty states. Reuse the shared building blocks in
    `components/` (`DataTable`, `FormField`, `PageHeader`, `NotConfigured`) and the `brand`
    colour rather than reinventing per screen. Add to those components instead of forking them.
+   - **House theme (already set — follow it):** Verve Advisory branding — navy blue
+     `brand` = #23408b (full 50–950 scale in `tailwind.config.ts`), orange `accent`
+     = #fe7a15 used sparingly, Montserrat font (loaded in `app/layout.tsx`).
+   - **Light + dark mode (already wired):** Tailwind `darkMode: "class"`; the toggle is
+     `components/ThemeToggle.tsx` (in the sidebar) and persists via `localStorage("theme")`.
+     **Every new screen must style both modes** by pairing classes, following the shared
+     components' pattern: panels `bg-white dark:bg-slate-900`, borders `border-slate-200
+     dark:border-slate-800`, body text `text-slate-700 dark:text-slate-300`, muted text
+     `text-slate-500 dark:text-slate-400`, brand accents `text-brand dark:text-brand-300`.
+     Use `inputClass` from `components/FormField.tsx` for all inputs/selects.
 4. **Keep it simple and visible.** These users can't read stack traces. Prefer plain,
    working UI over clever abstractions. Loading and empty states should be obvious.
 5. **After each working screen, STOP and tell the team to commit & push** with the exact
