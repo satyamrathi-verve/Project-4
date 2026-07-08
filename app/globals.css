@@ -13,3 +13,19 @@
 body {
   @apply bg-slate-50 text-slate-800 antialiased dark:bg-brand-950 dark:text-slate-200;
 }
+
+/* Printed/PDF invoices: proper A4 page and always light (paper is white
+   regardless of whether the screen was in dark mode when you hit Print). */
+@media print {
+  @page {
+    size: A4;
+    margin: 14mm 12mm;
+  }
+  html.dark {
+    color-scheme: light;
+  }
+  body {
+    background: #fff !important;
+    color: #0f172a !important;
+  }
+}

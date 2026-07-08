@@ -144,7 +144,7 @@ export default function AgeingReportPage() {
       {!isConfigured && <NotConfigured />}
 
       {isConfigured && error && (
-        <div className="rounded-xl border border-red-300 bg-red-50 p-6 text-red-800 dark:border-red-500/40 dark:bg-red-950/40 dark:text-red-200">
+        <div role="alert" className="rounded-xl border border-red-300 bg-red-50 p-6 text-red-800 dark:border-red-500/40 dark:bg-red-950/40 dark:text-red-200">
           <p className="font-semibold">Couldn&apos;t load the ageing report.</p>
           <p className="mt-1 text-sm">{error}</p>
         </div>
