@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { supabase, isConfigured } from "@/lib/supabase";
+import { inr, parseISODate, todayMidnight, addCalendarDays, daysBetween, toISODate } from "@/lib/format";
 import { PageHeader } from "@/components/PageHeader";
 import { NotConfigured } from "@/components/NotConfigured";
 import { DataTable, type Column } from "@/components/DataTable";
@@ -10,23 +11,34 @@ import { BarChart, type BarChartDatum } from "@/components/BarChart";
 
 /*
   Cashflow Projection: buckets outstanding-but-unpaid invoices by their expected
-  collection date (due_date, unless the analyst overrides it) into weekly or
-  monthly periods, so the team can see cash coming in rather than just what's
-  overdue. Overdue invoices are folded into the first ("this week / overdue")
-  period so nothing falls off the projection.
+  collection date (due_date, unless the analyst overrides it, or "Smart" mode
+  predicts it) into weekly or monthly periods, so the team can see cash coming
+  in rather than just what's overdue. Overdue invoices are folded into the
+  first ("this week / overdue") period so nothing falls off the projection.
 
-  Overrides (a promised amount/date that differs from the invoice) are kept as
-  client-side state only for this pass — there's no notes/JSON column on
-  `invoices` to persist them into without altering the schema, which the
-  house rules forbid. Refreshing the page resets them to the invoice's real
-  due_date/outstanding.
+  Smart prediction: real customers don't always pay on the due date, so
+  "Smart (payment history)" mode looks at each customer's already-paid
+  invoices, works out how many days late they typically pay (paid date minus
+  due date, floored at 0), and uses that as the default expected date instead
+  of the raw due date. Customers with no payment history yet fall back to the
+  portfolio-wide average delay. This is standard cash-forecasting practice —
+  DSO-style, per-customer payment behaviour beats assuming everyone pays on time.
+
+  Manual overrides (a promised amount/date that differs from both the invoice
+  and the prediction) are kept as client-side state only for this pass —
+  there's no notes/JSON column on `invoices` to persist them into without
+  altering the schema, which the house rules forbid. Refreshing the page
+  resets them.
 */
 
 type Mode = "week" | "month";
+type PredictionMode = "due" | "smart";
+type Basis = "manual" | "predicted" | "due";
 
 interface ProjRow {
   id: string;
   invoice_no: string;
+  customer_id: string;
   customerName: string;
   due_date: string; // YYYY-MM-DD
   outstanding: number;
@@ -44,22 +56,6 @@ interface Period {
   end: Date | null; // exclusive upper bound; null = catch-all overflow bucket
 }
 
-const inr = new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 });
-
-function parseISODate(s: string): Date {
-  const [y, m, d] = s.split("-").map(Number);
-  return new Date(y, m - 1, d);
-}
-function startOfDay(d: Date): Date {
-  const c = new Date(d);
-  c.setHours(0, 0, 0, 0);
-  return c;
-}
-function addDays(d: Date, n: number): Date {
-  const c = new Date(d);
-  c.setDate(c.getDate() + n);
-  return c;
-}
 function fmtShort(d: Date): string {
   return d.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
 }
@@ -68,11 +64,11 @@ function buildPeriods(mode: Mode, today: Date): Period[] {
   const periods: Period[] = [];
   if (mode === "week") {
     for (let i = 0; i < 12; i++) {
-      const end = addDays(today, 7 * (i + 1));
+      const end = addCalendarDays(today, 7 * (i + 1));
       periods.push({
         key: `w${i}`,
-        label: i === 0 ? "This week / Overdue" : `${fmtShort(addDays(today, 7 * i))} – ${fmtShort(addDays(end, -1))}`,
-        chartLabel: i === 0 ? "Now" : fmtShort(addDays(today, 7 * i)),
+        label: i === 0 ? "This week / Overdue" : `${fmtShort(addCalendarDays(today, 7 * i))} – ${fmtShort(addCalendarDays(end, -1))}`,
+        chartLabel: i === 0 ? "Now" : fmtShort(addCalendarDays(today, 7 * i)),
         end,
       });
     }
@@ -96,7 +92,10 @@ export default function CashflowPage() {
   const [error, setError] = useState<string | null>(null);
   const [overrides, setOverrides] = useState<Record<string, Override>>({});
   const [mode, setMode] = useState<Mode>("week");
+  const [predictionMode, setPredictionMode] = useState<PredictionMode>("due");
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [avgDelayByCustomer, setAvgDelayByCustomer] = useState<Record<string, number>>({});
+  const [portfolioAvgDelay, setPortfolioAvgDelay] = useState(0);
 
   useEffect(() => {
     if (!supabase) {
@@ -146,6 +145,7 @@ export default function CashflowPage() {
           return {
             id: i.id,
             invoice_no: i.invoice_no,
+            customer_id: i.customer_id,
             customerName: customer?.name ?? "—",
             due_date: i.due_date,
             outstanding: Number(i.total) - (allocByInvoice[i.id] ?? 0),
@@ -157,26 +157,92 @@ export default function CashflowPage() {
         setRows(built);
         setLoading(false);
       }
+
+      // Best-effort: learn each customer's typical payment delay from invoices
+      // already paid, to power "Smart" prediction. Non-fatal if it fails.
+      try {
+        const { data: paidInvoices } = await supabase.from("invoices").select("id, customer_id, due_date").eq("status", "paid");
+        if (paidInvoices && paidInvoices.length > 0) {
+          const paidIds = paidInvoices.map((i) => i.id);
+          const { data: paidAllocs } = await supabase
+            .from("receipt_allocations")
+            .select("invoice_id, receipt_id")
+            .in("invoice_id", paidIds);
+          const receiptIds = Array.from(new Set((paidAllocs ?? []).map((a) => a.receipt_id)));
+          const { data: receiptRows } =
+            receiptIds.length > 0
+              ? await supabase.from("receipts").select("id, receipt_date").in("id", receiptIds)
+              : { data: [] as { id: string; receipt_date: string }[] };
+          const receiptDateById = new Map((receiptRows ?? []).map((r) => [r.id, r.receipt_date]));
+
+          const paidOnByInvoice = new Map<string, string>();
+          for (const a of paidAllocs ?? []) {
+            const rd = receiptDateById.get(a.receipt_id);
+            if (!rd) continue;
+            const existing = paidOnByInvoice.get(a.invoice_id);
+            if (!existing || rd > existing) paidOnByInvoice.set(a.invoice_id, rd);
+          }
+
+          const delaysByCustomer = new Map<string, number[]>();
+          const allDelays: number[] = [];
+          for (const inv of paidInvoices) {
+            const paidOn = paidOnByInvoice.get(inv.id);
+            if (!paidOn) continue;
+            const delay = Math.max(0, daysBetween(parseISODate(inv.due_date), parseISODate(paidOn)));
+            allDelays.push(delay);
+            const list = delaysByCustomer.get(inv.customer_id) ?? [];
+            list.push(delay);
+            delaysByCustomer.set(inv.customer_id, list);
+          }
+
+          const avgMap: Record<string, number> = {};
+          delaysByCustomer.forEach((list, custId) => {
+            avgMap[custId] = list.reduce((s, d) => s + d, 0) / list.length;
+          });
+
+          if (!cancelled) {
+            setAvgDelayByCustomer(avgMap);
+            setPortfolioAvgDelay(allDelays.length > 0 ? allDelays.reduce((s, d) => s + d, 0) / allDelays.length : 0);
+          }
+        }
+      } catch {
+        // Smart prediction is a bonus feature — silently fall back to due dates.
+      }
     })();
     return () => {
       cancelled = true;
     };
   }, []);
 
-  const today = useMemo(() => startOfDay(new Date()), []);
+  const today = useMemo(() => todayMidnight(), []);
 
   const effective = useMemo(
     () =>
       rows.map((r) => {
         const o = overrides[r.id];
+        let effDate: string;
+        let basis: Basis;
+        if (o?.date) {
+          effDate = o.date;
+          basis = "manual";
+        } else if (predictionMode === "smart") {
+          const delay = avgDelayByCustomer[r.customer_id] ?? portfolioAvgDelay;
+          const predicted = addCalendarDays(parseISODate(r.due_date), Math.round(delay));
+          effDate = toISODate(predicted < today ? today : predicted);
+          basis = "predicted";
+        } else {
+          effDate = r.due_date;
+          basis = "due";
+        }
         return {
           ...r,
           effAmount: o?.amount ?? r.outstanding,
-          effDate: o?.date ?? r.due_date,
+          effDate,
           overridden: Boolean(o),
+          basis,
         };
       }),
-    [rows, overrides]
+    [rows, overrides, predictionMode, avgDelayByCustomer, portfolioAvgDelay, today]
   );
 
   const periods = useMemo(() => buildPeriods(mode, today), [mode, today]);
@@ -202,8 +268,8 @@ export default function CashflowPage() {
   const visibleRows = bucketed.filter((p) => p.key !== "beyond" || p.count > 0);
 
   const totalOutstanding = rows.reduce((s, r) => s + r.outstanding, 0);
-  const in30 = addDays(today, 30);
-  const in90 = addDays(today, 90);
+  const in30 = addCalendarDays(today, 30);
+  const in90 = addCalendarDays(today, 90);
   const totalNext30 = effective.filter((e) => parseISODate(e.effDate) < in30).reduce((s, e) => s + e.effAmount, 0);
   const totalBeyond90 = effective.filter((e) => parseISODate(e.effDate) >= in90).reduce((s, e) => s + e.effAmount, 0);
 
@@ -272,6 +338,27 @@ export default function CashflowPage() {
       ),
     },
     {
+      key: "basis",
+      header: "Basis",
+      render: (r) => {
+        if (r.basis === "manual") {
+          return <span className="text-xs font-medium text-brand dark:text-brand-300">Manual</span>;
+        }
+        if (r.basis === "predicted") {
+          const delay = Math.round(avgDelayByCustomer[r.customer_id] ?? portfolioAvgDelay);
+          return (
+            <span
+              className="inline-flex items-center rounded-full bg-accent/10 px-2 py-0.5 text-xs font-medium text-accent"
+              title={`Predicted from this customer's payment history (avg ${delay}d late). Falls back to the portfolio average when a customer has no payment history yet.`}
+            >
+              Predicted +{delay}d
+            </span>
+          );
+        }
+        return <span className="text-xs text-slate-400 dark:text-slate-500">Due date</span>;
+      },
+    },
+    {
       key: "reset",
       header: "",
       render: (r) =>
@@ -322,6 +409,39 @@ export default function CashflowPage() {
       {error && (
         <div className="mb-4 rounded-xl border border-red-300 bg-red-50 p-4 text-sm text-red-700 dark:border-red-500/40 dark:bg-red-950/40 dark:text-red-300">
           Couldn&apos;t load the projection: {error}
+        </div>
+      )}
+
+      {!loading && rows.length > 0 && (
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 dark:border-slate-800 dark:bg-slate-900">
+          <div>
+            <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">Prediction basis</p>
+            <p className="mt-0.5 max-w-xl text-xs text-slate-500 dark:text-slate-400">
+              {predictionMode === "smart"
+                ? `Smart mode moves each invoice's expected date using that customer's own payment history (portfolio average: ${Math.round(
+                    portfolioAvgDelay
+                  )} day${Math.round(portfolioAvgDelay) === 1 ? "" : "s"} late). Manual overrides below always win.`
+                : "Using each invoice's due date as-is. Switch to Smart to forecast using customers' real payment behaviour instead."}
+            </p>
+          </div>
+          <div className="flex flex-none rounded-lg border border-slate-300 p-0.5 dark:border-slate-700">
+            <button
+              onClick={() => setPredictionMode("due")}
+              className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                predictionMode === "due" ? "bg-brand text-white" : "text-slate-600 dark:text-slate-300"
+              }`}
+            >
+              Due date
+            </button>
+            <button
+              onClick={() => setPredictionMode("smart")}
+              className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                predictionMode === "smart" ? "bg-brand text-white" : "text-slate-600 dark:text-slate-300"
+              }`}
+            >
+              Smart (payment history)
+            </button>
+          </div>
         </div>
       )}
 
