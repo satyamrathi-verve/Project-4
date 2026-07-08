@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import { Montserrat } from "next/font/google";
 import "./globals.css";
-import { Nav } from "@/components/Nav";
-import { ThemeToggle } from "@/components/ThemeToggle";
+import { AuthGate } from "@/components/AuthGate";
 
 const montserrat = Montserrat({ subsets: ["latin"], variable: "--font-montserrat" });
 
@@ -21,15 +20,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script dangerouslySetInnerHTML={{ __html: themeInit }} />
       </head>
       <body className={`${montserrat.variable} font-sans`}>
-        <div className="flex h-screen">
-          <Nav />
-          <div className="flex flex-1 flex-col overflow-hidden">
-            <header className="flex flex-none items-center justify-end border-b border-slate-200 px-6 py-3 dark:border-slate-800">
-              <ThemeToggle />
-            </header>
-            <main className="flex-1 overflow-y-auto p-8">{children}</main>
-          </div>
-        </div>
+        <AuthGate>{children}</AuthGate>
       </body>
     </html>
   );
