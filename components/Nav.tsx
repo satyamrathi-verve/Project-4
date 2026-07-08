@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { signOut } from "@/lib/auth";
 
 /*
   Left sidebar. Only "Home" exists to start with — everything else is the roadmap
@@ -11,7 +12,6 @@ import { usePathname } from "next/navigation";
 */
 const LINKS: { href: string; label: string; built: boolean }[] = [
   { href: "/", label: "Home", built: true },
-  { href: "/signin", label: "Sign In", built: false },
   { href: "/masters/customers", label: "Customer Master", built: false },
   { href: "/masters/gl", label: "GL Master", built: false },
   { href: "/invoices", label: "Sales Invoices", built: false },
@@ -26,6 +26,12 @@ const LINKS: { href: string; label: string; built: boolean }[] = [
 
 export function Nav() {
   const pathname = usePathname();
+  const router = useRouter();
+
+  function handleSignOut() {
+    signOut();
+    router.replace("/signin");
+  }
 
   return (
     <nav className="flex h-full w-60 flex-col gap-1 border-r border-slate-200 bg-white p-4">
@@ -60,6 +66,12 @@ export function Nav() {
           </Link>
         );
       })}
+      <button
+        onClick={handleSignOut}
+        className="mt-auto rounded-lg px-3 py-2 text-left text-sm font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
+      >
+        Sign out
+      </button>
     </nav>
   );
 }
