@@ -4,11 +4,12 @@ import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { isSignedIn } from "@/lib/auth";
 import { Nav } from "@/components/Nav";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 /*
   Gates every page except /signin behind the front-end login. Shows nothing
   while checking localStorage (avoids a flash of protected content), then
-  either the standalone Sign In page or the Nav + page shell.
+  either the standalone Sign In page or the Nav + header + page shell.
 */
 export function AuthGate({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -38,7 +39,12 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex h-screen">
       <Nav />
-      <main className="flex-1 overflow-y-auto p-8">{children}</main>
+      <div className="flex flex-1 flex-col overflow-hidden">
+        <header className="flex flex-none items-center justify-end border-b border-slate-200 px-6 py-3 dark:border-slate-800">
+          <ThemeToggle />
+        </header>
+        <main className="flex-1 overflow-y-auto p-8">{children}</main>
+      </div>
     </div>
   );
 }
