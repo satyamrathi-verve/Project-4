@@ -22,7 +22,7 @@ const LINKS: { href: string; label: string; built: boolean; icon: string }[] = [
   { href: "/reminders", label: "AR Followup", built: false, icon: "reminders" },
   { href: "/reports/statement", label: "Customer Statement", built: false, icon: "statement" },
   { href: "/reports/ageing", label: "AR Ageing", built: true, icon: "ageing" },
-  { href: "/cashflow", label: "Cashflow Projection", built: false, icon: "cashflow" },
+  { href: "/cashflow", label: "Cashflow Projection", built: true, icon: "cashflow" },
   { href: "/dashboard", label: "Dashboard", built: false, icon: "dashboard" },
 ];
 

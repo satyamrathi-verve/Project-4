@@ -27,7 +27,7 @@ const ROADMAP: { icon: string; title: string; desc: string; built: boolean }[] =
   { icon: "reminders", title: "Auto Email Shoot", desc: "Chase every overdue customer", built: false },
   { icon: "statement", title: "Customer Statement", desc: "A running ledger per customer", built: false },
   { icon: "ageing", title: "AR Ageing", desc: "Outstanding split into age buckets", built: true },
-  { icon: "cashflow", title: "Cashflow Projection", desc: "Expected collections, week by week", built: false },
+  { icon: "cashflow", title: "Cashflow Projection", desc: "Expected collections, week by week", built: true },
   { icon: "dashboard", title: "Dashboard", desc: "At-a-glance overview tiles", built: false },
 ];
 
