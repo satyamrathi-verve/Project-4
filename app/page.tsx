@@ -1,76 +1,164 @@
 import { isConfigured } from "@/lib/supabase";
 import { PageHeader } from "@/components/PageHeader";
 import { NotConfigured } from "@/components/NotConfigured";
+import { CopyButton } from "@/components/CopyButton";
+import { ScreenIcon } from "@/components/icons";
 
 /*
   The home / "start here" screen. Nothing in this app is pre-built — your team
-  builds every screen on the roadmap below. This page just welcomes you and shows
-  the list. Once you've built the Dashboard, you can make this page redirect to it
-  (or replace this file with your dashboard).
-*/
+  builds every screen on the roadmap below. This page welcomes you, tracks how many
+  screens are done, and hands you the prompt to paste into Claude Code. Once you've
+  built the Dashboard, you can point this page there (or replace it with the dashboard).
 
-const ROADMAP = [
-  "Sign In — a front-door login gate",
-  "Customer Master — list customers, add / edit one",
-  "GL Master — the ledger accounts list",
-  "Sales Invoice — List (search + filter by status)",
-  "Sales Invoice — View (read-only detail)",
-  "Sales Invoice — Punch / Edit (create an invoice)",
-  "Sales Invoice — Print Preview (printable page)",
-  "Receipt Entry — record money and knock off invoices",
-  "Upload Report — bulk import from a CSV",
-  "Reminder Template — the chaser email you send",
-  "Auto Email Shoot — chase every overdue customer",
-  "Customer Statement — a running ledger for one customer",
-  "AR Ageing — outstanding split into age buckets",
-  "Cashflow Projection — expected collections, week by week",
-  "Dashboard — the at-a-glance overview tiles",
+  As you finish a screen, flip its `built` to true — the progress bar and its card
+  update automatically.
+*/
+const ROADMAP: { icon: string; title: string; desc: string; built: boolean }[] = [
+  { icon: "signin", title: "Sign In", desc: "A front-door login gate", built: false },
+  { icon: "customers", title: "Customer Master", desc: "List customers, add / edit one", built: false },
+  { icon: "gl", title: "GL Master", desc: "The ledger accounts list", built: false },
+  { icon: "invoices", title: "Sales Invoice — List", desc: "Search + filter by status", built: false },
+  { icon: "invoices", title: "Sales Invoice — View", desc: "Read-only invoice detail", built: false },
+  { icon: "invoices", title: "Sales Invoice — Punch", desc: "Create or edit an invoice", built: false },
+  { icon: "invoices", title: "Invoice Print Preview", desc: "A clean, printable page", built: false },
+  { icon: "receipts", title: "Receipt Entry", desc: "Record money, knock off invoices", built: false },
+  { icon: "upload", title: "Upload Report", desc: "Bulk import from a CSV", built: false },
+  { icon: "reminders", title: "Reminder Template", desc: "The chaser email you send", built: false },
+  { icon: "reminders", title: "Auto Email Shoot", desc: "Chase every overdue customer", built: false },
+  { icon: "statement", title: "Customer Statement", desc: "A running ledger per customer", built: false },
+  { icon: "ageing", title: "AR Ageing", desc: "Outstanding split into age buckets", built: false },
+  { icon: "cashflow", title: "Cashflow Projection", desc: "Expected collections, week by week", built: false },
+  { icon: "dashboard", title: "Dashboard", desc: "At-a-glance overview tiles", built: false },
+];
+
+const STEPS = [
+  "The database and all its data already exist in Supabase — you never touch the backend.",
+  "Point Claude Code at a screen from the list; it writes the page, you tweak it in plain English.",
+  "When a screen works, commit & push — that scores your team on the live leaderboard.",
 ];
 
 export default function HomePage() {
+  const built = ROADMAP.filter((r) => r.built).length;
+  const total = ROADMAP.length;
+  const pct = Math.round((built / total) * 100);
+  const nextScreen = ROADMAP.find((r) => !r.built);
+
   return (
-    <>
-      <PageHeader
-        title="Welcome — let's build the AR Manager"
-        subtitle="Nothing here is pre-built. You build every screen, one at a time."
-      />
+    <div className="mx-auto max-w-5xl">
+      <div className="animate-fade-in-up">
+        <PageHeader
+          title="Welcome — let's build the AR Manager"
+          subtitle="Nothing here is pre-built. You build every screen, one at a time."
+        />
+      </div>
 
       {!isConfigured && (
-        <div className="mb-6">
+        <div className="mb-6 animate-fade-in-up">
           <NotConfigured />
         </div>
       )}
 
-      <div className="rounded-xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-slate-900">
+      {/* Progress + next-up */}
+      <div className="grid animate-fade-in-up gap-4 md:grid-cols-3" style={{ animationDelay: "60ms" }}>
+        <div className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900 md:col-span-2">
+          <div className="flex items-end justify-between">
+            <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              Build progress
+            </h3>
+            <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
+              <span className="text-2xl font-bold text-brand dark:text-brand-300">{built}</span> / {total} screens
+            </p>
+          </div>
+          <div className="mt-3 h-3 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+            <div
+              className="h-full origin-left animate-grow-x rounded-full bg-gradient-to-r from-brand to-brand-400"
+              style={{ width: `${Math.max(pct, 2)}%` }}
+            />
+          </div>
+          <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">
+            {built === 0
+              ? "Fresh start — build the first screen and watch this fill up."
+              : built === total
+              ? "All screens built. Time to demo!"
+              : `Nice — ${total - built} to go. Keep pushing after each one.`}
+          </p>
+        </div>
+
+        {nextScreen && (
+          <div className="group flex flex-col justify-between rounded-xl border border-brand/30 bg-brand-50 p-5 dark:border-brand-400/30 dark:bg-brand-900/20">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-brand dark:text-brand-300">Next up</p>
+              <div className="mt-2 flex items-center gap-2">
+                <ScreenIcon name={nextScreen.icon} className="h-5 w-5 flex-none text-brand dark:text-brand-300" />
+                <h4 className="font-bold text-slate-900 dark:text-white">{nextScreen.title}</h4>
+              </div>
+            </div>
+            <div className="mt-3">
+              <CopyButton text={`build the ${nextScreen.title} screen`} label="Copy prompt" />
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* How this works */}
+      <div className="mt-6 animate-fade-in-up rounded-xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-slate-900" style={{ animationDelay: "120ms" }}>
         <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
           How this works
         </h3>
-        <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-slate-700 dark:text-slate-300">
-          <li>The database and all its data already exist in Supabase — you never touch the backend.</li>
-          <li>You point <span className="font-medium text-brand dark:text-brand-300">Claude Code</span> at a screen from the list; it writes the page, you tweak it in plain English.</li>
-          <li>When a screen works, you commit &amp; push — that scores your team on the live leaderboard.</li>
-          <li>Read <code className="rounded bg-slate-100 px-1 dark:bg-slate-800">README.md</code> for setup and the kickoff prompt to paste into Claude Code.</li>
-        </ol>
-      </div>
-
-      <div className="mt-6 rounded-xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-slate-900">
-        <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-          The screens to build
-        </h3>
-        <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-          Get as far as you can — a few done well beats all of them half-broken. The
-          spine <span className="font-medium text-slate-700 dark:text-slate-200">Sign In → Customer Master → Invoice List → Invoice View → Receipt Entry</span> demos best.
-        </p>
-        <ol className="mt-4 grid list-decimal gap-x-8 gap-y-2 pl-5 text-sm text-slate-700 dark:text-slate-300 sm:grid-cols-2">
-          {ROADMAP.map((s) => (
-            <li key={s}>{s}</li>
+        <div className="mt-4 grid gap-4 sm:grid-cols-3">
+          {STEPS.map((s, i) => (
+            <div key={i} className="flex gap-3">
+              <span className="flex h-7 w-7 flex-none items-center justify-center rounded-full bg-brand text-sm font-bold text-white">
+                {i + 1}
+              </span>
+              <p className="text-sm text-slate-600 dark:text-slate-300">{s}</p>
+            </div>
           ))}
-        </ol>
+        </div>
       </div>
 
-      <p className="mt-6 text-sm text-slate-500 dark:text-slate-400">
+      {/* The roadmap grid */}
+      <div className="mt-6">
+        <div className="mb-3 flex items-center justify-between">
+          <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+            The screens to build
+          </h3>
+          <p className="text-xs text-slate-400 dark:text-slate-500">Spine first — a few done well beats all half-broken.</p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {ROADMAP.map((r, i) => (
+            <div
+              key={r.title}
+              className="group animate-fade-in-up rounded-xl border border-slate-200 bg-white p-4 transition-all duration-200 hover:-translate-y-1 hover:border-brand hover:shadow-lg dark:border-slate-800 dark:bg-slate-900 dark:hover:border-brand-400"
+              style={{ animationDelay: `${150 + i * 35}ms` }}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex h-10 w-10 flex-none items-center justify-center rounded-lg bg-brand-50 text-brand transition-colors duration-200 group-hover:bg-brand group-hover:text-white dark:bg-brand-900/40 dark:text-brand-300">
+                  <ScreenIcon name={r.icon} className="h-5 w-5" />
+                </div>
+                {r.built ? (
+                  <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
+                    Done
+                  </span>
+                ) : (
+                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:bg-slate-800 dark:text-slate-500">
+                    Build me
+                  </span>
+                )}
+              </div>
+              <h4 className="mt-3 flex items-center gap-1.5 font-semibold text-slate-800 dark:text-slate-100">
+                <span className="text-xs font-normal text-slate-400 dark:text-slate-500">{i + 1}.</span>
+                {r.title}
+              </h4>
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{r.desc}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <p className="mt-6 animate-fade-in text-center text-sm text-slate-500 dark:text-slate-400" style={{ animationDelay: "700ms" }}>
         Ready? Tell Claude Code: <span className="font-medium text-slate-700 dark:text-slate-200">&ldquo;build the Sign In screen.&rdquo;</span>
       </p>
-    </>
+    </div>
   );
 }
