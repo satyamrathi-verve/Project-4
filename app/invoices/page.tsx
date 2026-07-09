@@ -10,8 +10,10 @@ import { NotConfigured } from "@/components/NotConfigured";
 import { DataTable, type Column } from "@/components/DataTable";
 import { StatusBadge } from "@/components/StatusBadge";
 import { FormField, inputClass } from "@/components/FormField";
-import { formatCurrency, formatDate } from "@/lib/format";
+import { formatCurrency, formatDate, todayISO } from "@/lib/format";
 import { buildAllocationMap, paidAmount, balanceDue, displayStatus } from "@/lib/invoice";
+import { downloadCsv } from "@/lib/csv";
+import { ExportButton } from "@/components/ExportButton";
 
 interface InvoiceRow {
   id: string;
@@ -46,6 +48,8 @@ export default function InvoiceListPage() {
   const [status, setStatus] = useState<"all" | InvoiceStatus>("all");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [amountMin, setAmountMin] = useState("");
+  const [amountMax, setAmountMax] = useState("");
 
   async function load() {
     if (!supabase) return;
@@ -113,6 +117,8 @@ export default function InvoiceListPage() {
     if (status !== "all" && r.status !== status) return false;
     if (dateFrom && r.invoice_date < dateFrom) return false;
     if (dateTo && r.invoice_date > dateTo) return false;
+    if (amountMin !== "" && r.total < Number(amountMin)) return false;
+    if (amountMax !== "" && r.total > Number(amountMax)) return false;
     if (search.trim()) {
       const q = search.trim().toLowerCase();
       if (!r.invoice_no.toLowerCase().includes(q) && !r.customerName.toLowerCase().includes(q)) return false;
@@ -121,6 +127,22 @@ export default function InvoiceListPage() {
   });
 
   const customerFilterName = customerId ? (rows ?? []).find((r) => r.customer_id === customerId)?.customerName : null;
+
+  function handleExport() {
+    downloadCsv(
+      `sales-invoices-${todayISO()}.csv`,
+      ["Invoice Number", "Invoice Date", "Customer", "Total Amount", "Paid Amount", "Balance", "Status"],
+      filtered.map((r) => [
+        r.invoice_no,
+        formatDate(r.invoice_date),
+        r.customerName,
+        r.total.toFixed(2),
+        r.paid.toFixed(2),
+        r.balance.toFixed(2),
+        r.status,
+      ])
+    );
+  }
 
   const columns: Column<InvoiceRow>[] = [
     {
@@ -183,12 +205,15 @@ export default function InvoiceListPage() {
         subtitle="Search, filter, and manage every invoice."
         action={
           isConfigured && (
-            <Link
-              href="/invoices/new"
-              className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white transition-all duration-200 hover:bg-brand-700 active:scale-95"
-            >
-              + New Invoice
-            </Link>
+            <div className="flex flex-wrap items-center gap-2">
+              <ExportButton onClick={handleExport} />
+              <Link
+                href="/invoices/new"
+                className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white transition-all duration-200 hover:bg-brand-700 active:scale-95"
+              >
+                + New Invoice
+              </Link>
+            </div>
           )
         }
       />
@@ -243,6 +268,12 @@ export default function InvoiceListPage() {
             </FormField>
             <FormField label="To date">
               <input type="date" className={inputClass} value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+            </FormField>
+            <FormField label="Min. amount (₹)">
+              <input type="number" min="0" className={inputClass} placeholder="0" value={amountMin} onChange={(e) => setAmountMin(e.target.value)} />
+            </FormField>
+            <FormField label="Max. amount (₹)">
+              <input type="number" min="0" className={inputClass} placeholder="No limit" value={amountMax} onChange={(e) => setAmountMax(e.target.value)} />
             </FormField>
           </div>
 

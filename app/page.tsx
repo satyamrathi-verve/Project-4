@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { isConfigured } from "@/lib/supabase";
 import { PageHeader } from "@/components/PageHeader";
 import { NotConfigured } from "@/components/NotConfigured";
@@ -27,8 +28,8 @@ const ROADMAP: { icon: string; title: string; desc: string; built: boolean }[] =
   { icon: "reminders", title: "Auto Email Shoot", desc: "Chase every overdue customer", built: false },
   { icon: "statement", title: "Customer Statement", desc: "A running ledger per customer", built: false },
   { icon: "ageing", title: "AR Ageing", desc: "Outstanding split into age buckets", built: true },
-  { icon: "cashflow", title: "Cashflow Projection", desc: "Expected collections, week by week", built: false },
-  { icon: "dashboard", title: "Dashboard", desc: "At-a-glance overview tiles", built: false },
+  { icon: "cashflow", title: "Cashflow Projection", desc: "Expected collections, week by week", built: true },
+  { icon: "dashboard", title: "Dashboard", desc: "At-a-glance overview tiles", built: true },
 ];
 
 const STEPS = [
@@ -42,6 +43,7 @@ export default function HomePage() {
   const total = ROADMAP.length;
   const pct = Math.round((built / total) * 100);
   const nextScreen = ROADMAP.find((r) => !r.built);
+  const dashboardBuilt = ROADMAP.find((r) => r.title === "Dashboard")?.built ?? false;
 
   return (
     <div className="mx-auto max-w-5xl">
@@ -51,6 +53,24 @@ export default function HomePage() {
           subtitle="Nothing here is pre-built. You build every screen, one at a time."
         />
       </div>
+
+      {dashboardBuilt && (
+        <div className="mb-6 animate-fade-in-up rounded-xl border border-brand/30 bg-gradient-to-r from-brand to-brand-700 p-6 text-white shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-brand-100">Live now</p>
+              <h3 className="mt-1 text-xl font-bold">See the whole business at a glance</h3>
+              <p className="mt-1 text-sm text-brand-100">Customers, invoices, overdue risk, and cash collected — all on one screen.</p>
+            </div>
+            <Link
+              href="/dashboard"
+              className="flex-none rounded-lg bg-white px-5 py-2.5 text-sm font-semibold text-brand transition-transform duration-200 hover:scale-105 active:scale-95"
+            >
+              Open Dashboard →
+            </Link>
+          </div>
+        </div>
+      )}
 
       {!isConfigured && (
         <div className="mb-6 animate-fade-in-up">
