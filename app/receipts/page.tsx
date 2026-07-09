@@ -6,7 +6,8 @@ import { PageHeader } from "@/components/PageHeader";
 import { NotConfigured } from "@/components/NotConfigured";
 import { FormField, inputClass } from "@/components/FormField";
 import { DataTable, type Column } from "@/components/DataTable";
-import type { Customer, Invoice, ReceiptMode } from "@/lib/types";
+import { SearchableSelect } from "@/components/SearchableSelect";
+import type { Customer, Invoice, Receipt, ReceiptMode } from "@/lib/types";
 
 /*
   Records money received from a customer and knocks it off their open/partial
@@ -22,6 +23,15 @@ const MODES: { value: ReceiptMode; label: string }[] = [
   { value: "upi", label: "UPI" },
   { value: "neft", label: "NEFT" },
 ];
+
+const MODE_LABEL: Record<ReceiptMode, string> = { cash: "Cash", cheque: "Cheque", upi: "UPI", neft: "NEFT" };
+
+const MODE_BADGE: Record<ReceiptMode, string> = {
+  cash: "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300",
+  cheque: "bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",
+  upi: "bg-brand-50 text-brand dark:bg-brand-900/30 dark:text-brand-300",
+  neft: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300",
+};
 
 function round2(n: number) {
   return Math.round((n + Number.EPSILON) * 100) / 100;
@@ -57,6 +67,7 @@ export default function ReceiptEntryPage() {
   const [reference, setReference] = useState("");
 
   const [previewReceiptNo, setPreviewReceiptNo] = useState("");
+  const [recentReceipts, setRecentReceipts] = useState<Receipt[]>([]);
   const [invoices, setInvoices] = useState<OpenInvoice[]>([]);
   const [loadingInvoices, setLoadingInvoices] = useState(false);
   const [allocations, setAllocations] = useState<Record<string, string>>({});
@@ -84,8 +95,13 @@ export default function ReceiptEntryPage() {
     if (!supabase) return;
     supabase
       .from("receipts")
-      .select("receipt_no")
-      .then(({ data }) => setPreviewReceiptNo(nextReceiptNo((data ?? []).map((r) => r.receipt_no))));
+      .select("*")
+      .order("receipt_date", { ascending: false })
+      .then(({ data }) => {
+        const rows = (data ?? []) as Receipt[];
+        setPreviewReceiptNo(nextReceiptNo(rows.map((r) => r.receipt_no)));
+        setRecentReceipts(rows.slice(0, 15));
+      });
   }, [success]);
 
   useEffect(() => {
@@ -134,6 +150,14 @@ export default function ReceiptEntryPage() {
       cancelled = true;
     };
   }, [customerId]);
+
+  const customerMap = useMemo(() => {
+    const m = new Map<string, Customer>();
+    for (const c of customers) m.set(c.id, c);
+    return m;
+  }, [customers]);
+
+  const totalOutstanding = useMemo(() => round2(invoices.reduce((s, inv) => s + inv.outstanding, 0)), [invoices]);
 
   const amountNum = round2(Number(amount) || 0);
 
@@ -247,6 +271,21 @@ export default function ReceiptEntryPage() {
     );
   }
 
+  const recentReceiptColumns: Column<Receipt>[] = [
+    { key: "receipt_no", header: "Receipt No.", render: (r) => <span className="font-medium">{r.receipt_no}</span> },
+    { key: "receipt_date", header: "Date", render: (r) => formatDate(r.receipt_date) },
+    { key: "customer_id", header: "Customer", render: (r) => customerMap.get(r.customer_id)?.name ?? "Unknown customer" },
+    { key: "amount", header: "Amount", className: "text-right tabular-nums", render: (r) => `₹${money(Number(r.amount))}` },
+    {
+      key: "mode",
+      header: "Mode",
+      render: (r) => (
+        <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${MODE_BADGE[r.mode]}`}>{MODE_LABEL[r.mode]}</span>
+      ),
+    },
+    { key: "reference", header: "Reference", render: (r) => r.reference ?? "—" },
+  ];
+
   const columns: Column<OpenInvoice>[] = [
     { key: "invoice_no", header: "Invoice", render: (r) => <span className="font-medium">{r.invoice_no}</span> },
     { key: "invoice_date", header: "Date", render: (r) => formatDate(r.invoice_date) },
@@ -300,19 +339,12 @@ export default function ReceiptEntryPage() {
       <div className="rounded-xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-slate-900">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <FormField label="Customer">
-            <select
-              className={inputClass}
+            <SearchableSelect
+              options={customers.map((c) => ({ id: c.id, label: c.name, sublabel: c.code }))}
               value={customerId}
-              onChange={(e) => setCustomerId(e.target.value)}
-              disabled={loadingCustomers}
-            >
-              <option value="">{loadingCustomers ? "Loading customers…" : "Select a customer"}</option>
-              {customers.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.code} — {c.name}
-                </option>
-              ))}
-            </select>
+              onChange={setCustomerId}
+              placeholder={loadingCustomers ? "Loading customers…" : "Search customers…"}
+            />
           </FormField>
 
           <FormField label="Receipt No.">
@@ -363,9 +395,18 @@ export default function ReceiptEntryPage() {
 
       <div className="mt-6">
         <div className="mb-3 flex items-center justify-between">
-          <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-            Allocate against open invoices
-          </h3>
+          <div>
+            <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              Allocate against open invoices
+            </h3>
+            {customerId && invoices.length > 0 && (
+              <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
+                Total outstanding for this customer:{" "}
+                <span className="font-medium text-slate-600 dark:text-slate-300">₹{money(totalOutstanding)}</span> across{" "}
+                {invoices.length} invoice{invoices.length === 1 ? "" : "s"}
+              </p>
+            )}
+          </div>
           {invoices.length > 0 && (
             <button
               type="button"
@@ -420,6 +461,15 @@ export default function ReceiptEntryPage() {
         >
           {saving ? "Saving…" : "Save Receipt"}
         </button>
+      </div>
+
+      <div className="mt-8 rounded-xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-slate-900">
+        <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+          Recent receipts
+        </h3>
+        <div className="mt-4">
+          <DataTable columns={recentReceiptColumns} rows={recentReceipts} empty="No receipts recorded yet." />
+        </div>
       </div>
     </div>
   );
