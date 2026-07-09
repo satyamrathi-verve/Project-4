@@ -14,7 +14,7 @@ import { ScreenIcon } from "./icons";
 const LINKS: { href: string; label: string; built: boolean; icon: string }[] = [
   { href: "/", label: "Home", built: true, icon: "home" },
   { href: "/masters/customers", label: "Customer Master", built: true, icon: "customers" },
-  { href: "/masters/gl", label: "GL Master", built: false, icon: "gl" },
+  { href: "/masters/gl", label: "GL Master", built: true, icon: "gl" },
   { href: "/invoices", label: "Sales Invoices", built: true, icon: "invoices" },
   { href: "/receipts", label: "Receipt Entry", built: false, icon: "receipts" },
   { href: "/upload", label: "Upload Report", built: true, icon: "upload" },

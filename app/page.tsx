@@ -17,7 +17,7 @@ import { ScreenIcon } from "@/components/icons";
 const ROADMAP: { icon: string; title: string; desc: string; built: boolean }[] = [
   { icon: "signin", title: "Sign In", desc: "A front-door login gate", built: true },
   { icon: "customers", title: "Customer Master", desc: "List customers, add / edit one", built: true },
-  { icon: "gl", title: "GL Master", desc: "The ledger accounts list", built: false },
+  { icon: "gl", title: "GL Master", desc: "The ledger accounts list", built: true },
   { icon: "invoices", title: "Sales Invoice — List", desc: "Search + filter by status", built: true },
   { icon: "invoices", title: "Sales Invoice — View", desc: "Read-only invoice detail", built: true },
   { icon: "invoices", title: "Sales Invoice — Punch", desc: "Create or edit an invoice", built: true },
