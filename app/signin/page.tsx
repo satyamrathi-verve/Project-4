@@ -7,10 +7,18 @@ import { customerSignIn, customerSignUp } from "@/lib/customerAuth";
 import { FormField, inputClass } from "@/components/FormField";
 import { ScreenIcon } from "@/components/icons";
 
+// Internal (analyst) framing: the AR team collecting money owed to them.
 const HIGHLIGHTS = [
   { icon: "ageing", text: "Know exactly who owes you, and for how long" },
   { icon: "cashflow", text: "See cash coming in before it lands" },
   { icon: "dashboard", text: "One screen for the whole business" },
+];
+
+// Customer framing: flipped perspective — they owe the money, not collect it.
+const CUSTOMER_HIGHLIGHTS = [
+  { icon: "ageing", text: "Know exactly what you owe, and when it's due" },
+  { icon: "invoices", text: "See every invoice and payment in one place" },
+  { icon: "dashboard", text: "One screen for your whole account" },
 ];
 
 // Real contributors from the team's commit history. `photo` is left blank until
@@ -144,15 +152,18 @@ export default function SignInPage() {
 
         <img src="/verve-logo-white.png" alt="Verve Advisory" className="relative h-10 w-auto self-start object-contain" />
 
-        <div className="relative animate-fade-in-up">
-          <h1 className="text-3xl font-bold leading-tight">Take control of your receivables.</h1>
+        <div key={tab} className="relative animate-fade-in-up">
+          <h1 className="text-3xl font-bold leading-tight">
+            {tab === "internal" ? "Take control of your receivables." : "See exactly what you owe."}
+          </h1>
           <p className="mt-3 max-w-sm text-sm text-brand-100">
-            Track outstanding balances, chase overdue invoices, and see your cash flow —
-            all in one place, built screen by screen by your team.
+            {tab === "internal"
+              ? "Track outstanding balances, chase overdue invoices, and see your cash flow — all in one place, built screen by screen by your team."
+              : "View every invoice, track due dates, and stay on top of your account with Verve Advisory — all in one place."}
           </p>
 
           <div className="mt-8 flex flex-col gap-3">
-            {HIGHLIGHTS.map((h, i) => (
+            {(tab === "internal" ? HIGHLIGHTS : CUSTOMER_HIGHLIGHTS).map((h, i) => (
               <div
                 key={h.text}
                 className="flex animate-fade-in-up items-center gap-3 rounded-lg bg-white/10 px-4 py-3 backdrop-blur-sm transition-transform duration-200 hover:translate-x-1 hover:bg-white/15"
@@ -165,15 +176,26 @@ export default function SignInPage() {
           </div>
         </div>
 
-        <div className="relative animate-fade-in-up" style={{ animationDelay: "420ms" }}>
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-brand-200">Built live by the team</p>
-          <div className="flex -space-x-2">
-            {TEAM.map((member) => (
-              <TeamAvatar key={member.name} member={member} />
-            ))}
+        {tab === "internal" ? (
+          <div className="relative animate-fade-in-up" style={{ animationDelay: "420ms" }}>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-brand-200">Built live by the team</p>
+            <div className="flex -space-x-2">
+              {TEAM.map((member) => (
+                <TeamAvatar key={member.name} member={member} />
+              ))}
+            </div>
+            <p className="mt-3 text-xs text-brand-200">Verve AR Manager — built screen by screen, live.</p>
           </div>
-          <p className="mt-3 text-xs text-brand-200">Verve AR Manager — built screen by screen, live.</p>
-        </div>
+        ) : (
+          <div className="relative animate-fade-in-up" style={{ animationDelay: "420ms" }}>
+            <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-brand-200">
+              <ScreenIcon name="signin" className="h-3.5 w-3.5" />
+              Private &amp; secure
+            </p>
+            <p className="max-w-sm text-sm text-white">Only you can see your invoices and balance — no other customer's data is ever visible here.</p>
+            <p className="mt-3 text-xs text-brand-200">Questions about an invoice? accounts@verveadvisory.com</p>
+          </div>
+        )}
       </div>
 
       {/* Form panel */}
