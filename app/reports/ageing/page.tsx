@@ -156,6 +156,7 @@ export default function AgeingReportPage() {
   const [minOutstanding, setMinOutstanding] = useState("");
   const [overdueOnly, setOverdueOnly] = useState(false);
   const [overLimitOnly, setOverLimitOnly] = useState(false);
+  const [creditLimitOverride, setCreditLimitOverride] = useState("");
 
   const [visibleBuckets, setVisibleBuckets] = useState<Record<Bucket, boolean>>({
     notDue: true, d0_30: true, d31_60: true, d61_90: true, d90plus: true,
@@ -243,14 +244,19 @@ export default function AgeingReportPage() {
     return result;
   }, [loaded, invoices, receipts, allocations, customerIndex, asOfDate]);
 
-  // Per-customer summary — the primary on-screen view.
+  // Per-customer summary — the primary on-screen view. Credit limit is normally
+  // each customer's own `credit_limit`, but the override lets you stress-test a
+  // blanket limit ("who'd be over if everyone's cap were ₹2,00,000?") without
+  // touching customer master data — this report stays read-only either way.
+  const overrideLimit = creditLimitOverride === "" ? null : Number(creditLimitOverride);
   const summaryRows = useMemo<AgeingRow[]>(() => {
     const byCustomer = new Map<string, AgeingRow>();
     for (const l of lines) {
       let row = byCustomer.get(l.customerId);
       if (!row) {
         const cust = customerIndex.get(l.customerId)!;
-        row = { id: cust.id, code: cust.code, name: cust.name, state: cust.state, creditLimit: cust.credit_limit, overLimit: false, ...EMPTY_BUCKETS };
+        const creditLimit = overrideLimit !== null ? overrideLimit : cust.credit_limit;
+        row = { id: cust.id, code: cust.code, name: cust.name, state: cust.state, creditLimit, overLimit: false, ...EMPTY_BUCKETS };
         byCustomer.set(l.customerId, row);
       }
       row[l.bucket] += l.outstanding;
@@ -260,7 +266,7 @@ export default function AgeingReportPage() {
       row.overLimit = row.creditLimit > 0 && row.total > row.creditLimit;
     }
     return Array.from(byCustomer.values());
-  }, [lines, customerIndex]);
+  }, [lines, customerIndex, overrideLimit]);
 
   // "Identity" filters — who the customer is, not how much they owe — used both
   // for the on-screen table and to scope the DSO/KPI portfolio segment below.
@@ -386,13 +392,15 @@ export default function AgeingReportPage() {
     setMinOutstanding("");
     setOverdueOnly(false);
     setOverLimitOnly(false);
+    setCreditLimitOverride("");
   }
 
   const activeBucketCols = BUCKET_COLS.filter((b) => visibleBuckets[b.key]);
   const asOfLabel = toDateOnly(asOfDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+  const creditLimitColLabel = overrideLimit !== null ? "Credit Limit (override)" : "Credit Limit";
   const filtersActive =
     search !== "" || locationFilter !== "all" || bucketFilter !== "all" || minOutstanding !== "" ||
-    overdueOnly || overLimitOnly || asOfDate !== todayISO();
+    overdueOnly || overLimitOnly || creditLimitOverride !== "" || asOfDate !== todayISO();
 
   // ---- export: one shared table builder feeding CSV / Excel / PDF -----------
 
@@ -442,7 +450,7 @@ export default function AgeingReportPage() {
       { header: "Customer Code", type: "text" },
       { header: "Customer Name", type: "text" },
       ...(showLocationCol ? [{ header: "Location", type: "text" as const }] : []),
-      ...(showCreditLimitCol ? [{ header: "Credit Limit", type: "currency" as const }] : []),
+      ...(showCreditLimitCol ? [{ header: creditLimitColLabel, type: "currency" as const }] : []),
       ...activeBucketCols.map((b) => ({ header: b.header, type: "currency" as const })),
       { header: "Total Outstanding", type: "currency" },
       { header: "Over Limit", type: "text" },
@@ -637,6 +645,16 @@ export default function AgeingReportPage() {
                 onChange={(e) => setMinOutstanding(e.target.value)}
               />
             </FormField>
+            <FormField label="Credit limit override (₹)">
+              <input
+                type="number"
+                min="0"
+                className={inputClass}
+                placeholder="Use each customer's own limit"
+                value={creditLimitOverride}
+                onChange={(e) => setCreditLimitOverride(e.target.value)}
+              />
+            </FormField>
             <div className="flex items-end">
               <button
                 type="button"
@@ -655,6 +673,9 @@ export default function AgeingReportPage() {
             <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
               <input type="checkbox" checked={overLimitOnly} onChange={(e) => setOverLimitOnly(e.target.checked)} className="h-4 w-4 rounded border-slate-300 text-brand focus:ring-brand dark:border-slate-700" />
               Over credit limit only
+              {overrideLimit !== null && (
+                <span className="text-xs text-slate-400 dark:text-slate-500">(using {formatCurrency(overrideLimit)} for everyone)</span>
+              )}
             </label>
           </div>
 
@@ -700,7 +721,7 @@ export default function AgeingReportPage() {
                   )}
                   {showCreditLimitCol && (
                     <th className="cursor-pointer select-none px-4 py-3 text-right font-semibold text-slate-600 dark:text-slate-300" onClick={() => toggleSort("creditLimit")}>
-                      Credit Limit{sortArrow("creditLimit")}
+                      {creditLimitColLabel}{sortArrow("creditLimit")}
                     </th>
                   )}
                   {activeBucketCols.map((b) => (
