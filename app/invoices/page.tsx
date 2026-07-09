@@ -48,6 +48,8 @@ export default function InvoiceListPage() {
   const [status, setStatus] = useState<"all" | InvoiceStatus>("all");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [amountMin, setAmountMin] = useState("");
+  const [amountMax, setAmountMax] = useState("");
 
   async function load() {
     if (!supabase) return;
@@ -115,6 +117,8 @@ export default function InvoiceListPage() {
     if (status !== "all" && r.status !== status) return false;
     if (dateFrom && r.invoice_date < dateFrom) return false;
     if (dateTo && r.invoice_date > dateTo) return false;
+    if (amountMin !== "" && r.total < Number(amountMin)) return false;
+    if (amountMax !== "" && r.total > Number(amountMax)) return false;
     if (search.trim()) {
       const q = search.trim().toLowerCase();
       if (!r.invoice_no.toLowerCase().includes(q) && !r.customerName.toLowerCase().includes(q)) return false;
@@ -264,6 +268,12 @@ export default function InvoiceListPage() {
             </FormField>
             <FormField label="To date">
               <input type="date" className={inputClass} value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+            </FormField>
+            <FormField label="Min. amount (₹)">
+              <input type="number" min="0" className={inputClass} placeholder="0" value={amountMin} onChange={(e) => setAmountMin(e.target.value)} />
+            </FormField>
+            <FormField label="Max. amount (₹)">
+              <input type="number" min="0" className={inputClass} placeholder="No limit" value={amountMax} onChange={(e) => setAmountMax(e.target.value)} />
             </FormField>
           </div>
 

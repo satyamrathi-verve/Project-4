@@ -7,7 +7,7 @@ import { inr, parseISODate, todayMidnight, addCalendarDays, daysBetween, toISODa
 import { PageHeader } from "@/components/PageHeader";
 import { NotConfigured } from "@/components/NotConfigured";
 import { DataTable, type Column } from "@/components/DataTable";
-import { inputClass } from "@/components/FormField";
+import { FormField, inputClass } from "@/components/FormField";
 import { BarChart, type BarChartDatum } from "@/components/BarChart";
 import { ExportButton } from "@/components/ExportButton";
 
@@ -95,6 +95,8 @@ export default function CashflowPage() {
   const [overrides, setOverrides] = useState<Record<string, Override>>({});
   const [mode, setMode] = useState<Mode>("week");
   const [predictionMode, setPredictionMode] = useState<PredictionMode>("due");
+  const [customerFilter, setCustomerFilter] = useState("all");
+  const [minAmount, setMinAmount] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
   const [avgDelayByCustomer, setAvgDelayByCustomer] = useState<Record<string, number>>({});
   const [portfolioAvgDelay, setPortfolioAvgDelay] = useState(0);
@@ -218,9 +220,26 @@ export default function CashflowPage() {
 
   const today = useMemo(() => todayMidnight(), []);
 
+  const customers = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const r of rows) map.set(r.customer_id, r.customerName);
+    return Array.from(map.entries())
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [rows]);
+
+  const filteredRows = useMemo(() => {
+    const min = minAmount === "" ? 0 : Number(minAmount);
+    return rows.filter((r) => {
+      if (customerFilter !== "all" && r.customer_id !== customerFilter) return false;
+      if (r.outstanding < min) return false;
+      return true;
+    });
+  }, [rows, customerFilter, minAmount]);
+
   const effective = useMemo(
     () =>
-      rows.map((r) => {
+      filteredRows.map((r) => {
         const o = overrides[r.id];
         let effDate: string;
         let basis: Basis;
@@ -244,7 +263,7 @@ export default function CashflowPage() {
           basis,
         };
       }),
-    [rows, overrides, predictionMode, avgDelayByCustomer, portfolioAvgDelay, today]
+    [filteredRows, overrides, predictionMode, avgDelayByCustomer, portfolioAvgDelay, today]
   );
 
   const periods = useMemo(() => buildPeriods(mode, today), [mode, today]);
@@ -269,7 +288,7 @@ export default function CashflowPage() {
 
   const visibleRows = bucketed.filter((p) => p.key !== "beyond" || p.count > 0);
 
-  const totalOutstanding = rows.reduce((s, r) => s + r.outstanding, 0);
+  const totalOutstanding = filteredRows.reduce((s, r) => s + r.outstanding, 0);
   const in30 = addCalendarDays(today, 30);
   const in90 = addCalendarDays(today, 90);
   const totalNext30 = effective.filter((e) => parseISODate(e.effDate) < in30).reduce((s, e) => s + e.effAmount, 0);
@@ -493,6 +512,22 @@ export default function CashflowPage() {
         </div>
       )}
 
+      {!loading && rows.length > 0 && (
+        <div className="mb-6 grid gap-3 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900 sm:grid-cols-2 lg:grid-cols-4">
+          <FormField label="Customer">
+            <select className={inputClass} value={customerFilter} onChange={(e) => setCustomerFilter(e.target.value)}>
+              <option value="all">All customers</option>
+              {customers.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          </FormField>
+          <FormField label="Min. outstanding (₹)">
+            <input type="number" min="0" className={inputClass} placeholder="0" value={minAmount} onChange={(e) => setMinAmount(e.target.value)} />
+          </FormField>
+        </div>
+      )}
+
       <div className="mb-6 grid gap-4 sm:grid-cols-3">
         <SummaryTile label="Total Outstanding" value={inr.format(totalOutstanding)} />
         <SummaryTile label="Expected in next 30 days" value={inr.format(totalNext30)} />
@@ -506,6 +541,10 @@ export default function CashflowPage() {
       ) : rows.length === 0 ? (
         <div className="rounded-xl border border-slate-200 bg-white p-10 text-center text-slate-400 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-500">
           No open, partial, or overdue invoices to project.
+        </div>
+      ) : filteredRows.length === 0 ? (
+        <div className="rounded-xl border border-slate-200 bg-white p-10 text-center text-slate-400 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-500">
+          No invoices match these filters.
         </div>
       ) : (
         <>

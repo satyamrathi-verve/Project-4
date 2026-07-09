@@ -6,6 +6,7 @@ import { inr, parseISODate, todayMidnight, addCalendarDays, formatShortDate } fr
 import { PageHeader } from "@/components/PageHeader";
 import { NotConfigured } from "@/components/NotConfigured";
 import { DataTable, type Column } from "@/components/DataTable";
+import { inputClass } from "@/components/FormField";
 import { ScreenIcon } from "@/components/icons";
 import { StatusPill, effectiveStatus, daysOverdue, type EffectiveStatus } from "@/components/StatusPill";
 import type { InvoiceStatus } from "@/lib/types";
@@ -56,6 +57,7 @@ export default function DashboardPage() {
   const [customers, setCustomers] = useState<CustomerLite[] | null>(null);
   const [invoices, setInvoices] = useState<InvoiceRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [recentStatusFilter, setRecentStatusFilter] = useState<"all" | EffectiveStatus>("all");
 
   useEffect(() => {
     if (!supabase) return;
@@ -149,7 +151,7 @@ export default function DashboardPage() {
       .sort((a, b) => b.outstanding - a.outstanding)
       .slice(0, 5);
 
-    const recent = [...invoices].sort((a, b) => (a.invoice_date < b.invoice_date ? 1 : a.invoice_date > b.invoice_date ? -1 : 0)).slice(0, 8);
+    const recent = [...invoices].sort((a, b) => (a.invoice_date < b.invoice_date ? 1 : a.invoice_date > b.invoice_date ? -1 : 0));
 
     return {
       totalCustomers: customers.length,
@@ -162,6 +164,15 @@ export default function DashboardPage() {
       recent,
     };
   }, [customers, invoices]);
+
+  const visibleRecent = useMemo(() => {
+    if (!stats) return [];
+    const filtered =
+      recentStatusFilter === "all"
+        ? stats.recent
+        : stats.recent.filter((r) => effectiveStatus(r.status, r.due_date) === recentStatusFilter);
+    return filtered.slice(0, 8);
+  }, [stats, recentStatusFilter]);
 
   const recentColumns: Column<InvoiceRow>[] = [
     {
@@ -287,8 +298,21 @@ export default function DashboardPage() {
           </div>
 
           <div>
-            <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Recent Invoices</h3>
-            <DataTable columns={recentColumns} rows={stats.recent} getRowHref={(r) => `/invoices/${r.id}`} empty="No invoices yet." />
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Recent Invoices</h3>
+              <select
+                aria-label="Filter recent invoices by status"
+                className={`${inputClass} w-auto py-1.5 text-xs`}
+                value={recentStatusFilter}
+                onChange={(e) => setRecentStatusFilter(e.target.value as "all" | EffectiveStatus)}
+              >
+                <option value="all">All statuses</option>
+                {STATUS_ORDER.map((s) => (
+                  <option key={s} value={s}>{STATUS_LABEL[s]}</option>
+                ))}
+              </select>
+            </div>
+            <DataTable columns={recentColumns} rows={visibleRecent} getRowHref={(r) => `/invoices/${r.id}`} empty="No invoices match this filter." />
           </div>
         </>
       )}
