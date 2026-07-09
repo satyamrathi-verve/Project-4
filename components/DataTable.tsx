@@ -25,12 +25,15 @@ export function DataTable<T extends { id: string }>({
   onRowClick?: (row: T) => void;
 }) {
   return (
-    <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+    <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 print:overflow-visible dark:print:border-slate-200 dark:print:bg-white">
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-b border-slate-200 bg-slate-50 text-left dark:border-slate-800 dark:bg-slate-800/50">
+          <tr className="border-b border-slate-200 bg-slate-50 text-left dark:border-slate-800 dark:bg-slate-800/50 dark:print:border-slate-200 dark:print:bg-slate-50">
             {columns.map((c) => (
-              <th key={c.key} className={`px-4 py-3 font-semibold text-slate-600 dark:text-slate-300 ${c.className ?? ""}`}>
+              <th
+                key={c.key}
+                className={`whitespace-nowrap px-4 py-3 font-semibold text-slate-600 dark:text-slate-300 dark:print:text-slate-600 ${c.className ?? ""}`}
+              >
                 {c.header}
               </th>
             ))}
@@ -39,7 +42,7 @@ export function DataTable<T extends { id: string }>({
         <tbody>
           {rows.length === 0 ? (
             <tr>
-              <td colSpan={columns.length} className="px-4 py-10 text-center text-slate-400 dark:text-slate-500">
+              <td colSpan={columns.length} className="px-4 py-10 text-center text-slate-400 dark:text-slate-500 dark:print:text-slate-400">
                 {empty}
               </td>
             </tr>
@@ -48,12 +51,12 @@ export function DataTable<T extends { id: string }>({
               <tr
                 key={row.id}
                 onClick={onRowClick ? () => onRowClick(row) : undefined}
-                className={`border-b border-slate-100 last:border-0 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800/50 ${
+                className={`border-b border-slate-100 last:border-0 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800/50 dark:print:border-slate-100 ${
                   onRowClick ? "cursor-pointer" : ""
                 }`}
               >
                 {columns.map((c) => (
-                  <td key={c.key} className={`px-4 py-3 text-slate-700 dark:text-slate-300 ${c.className ?? ""}`}>
+                  <td key={c.key} className={`px-4 py-3 text-slate-700 dark:text-slate-300 dark:print:text-slate-700 ${c.className ?? ""}`}>
                     {c.render ? c.render(row) : String((row as Record<string, unknown>)[c.key] ?? "")}
                   </td>
                 ))}
