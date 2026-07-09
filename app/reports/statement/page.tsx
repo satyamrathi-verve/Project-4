@@ -115,6 +115,27 @@ function csvCell(v: string | number): string {
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
+const PAGE_SIZE = 1000;
+
+// Supabase/PostgREST caps unbounded selects at a default row limit (1000).
+// A long-standing customer can have thousands of transactions, so every
+// per-customer fetch pages through with .range() until it's genuinely done
+// — this must never silently truncate.
+async function fetchAllRows<T>(
+  buildQuery: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>
+): Promise<{ data: T[]; error: string | null }> {
+  const all: T[] = [];
+  let from = 0;
+  for (;;) {
+    const { data, error } = await buildQuery(from, from + PAGE_SIZE - 1);
+    if (error) return { data: all, error: error.message };
+    all.push(...(data ?? []));
+    if (!data || data.length < PAGE_SIZE) break;
+    from += PAGE_SIZE;
+  }
+  return { data: all, error: null };
+}
+
 const PRESET_LABELS: Record<Exclude<DateRangePreset, "custom">, string> = {
   thisMonth: "This Month",
   last30: "Last 30 Days",
@@ -130,6 +151,7 @@ export default function CustomerStatementPage() {
   const [allocations, setAllocations] = useState<ReceiptAllocation[] | null>(null);
   const [company, setCompany] = useState<Company | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [customerDataError, setCustomerDataError] = useState<string | null>(null);
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
 
   const [rangePreset, setRangePreset] = useState<DateRangePreset>("allTime");
@@ -143,28 +165,74 @@ export default function CustomerStatementPage() {
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement>(null);
 
+  // Customers + company are small, whole-table lookups — safe to load once,
+  // up front, for the picker and the print header.
   useEffect(() => {
     if (!supabase) return;
     (async () => {
-      const [cust, inv, rcpt, alloc, comp] = await Promise.all([
+      const [cust, comp] = await Promise.all([
         supabase.from("customers").select("*"),
-        supabase.from("invoices").select("*"),
-        supabase.from("receipts").select("*"),
-        supabase.from("receipt_allocations").select("*"),
         supabase.from("company").select("*").limit(1).single(),
       ]);
-      const firstError = cust.error || inv.error || rcpt.error || alloc.error;
-      if (firstError) {
-        setError(firstError.message);
+      if (cust.error) {
+        setError(cust.error.message);
         return;
       }
       setCustomers(cust.data as Customer[]);
-      setInvoices(inv.data as Invoice[]);
-      setReceipts(rcpt.data as Receipt[]);
-      setAllocations(alloc.data as ReceiptAllocation[]);
       setCompany((comp.data as Company) ?? null);
     })();
   }, []);
+
+  // A customer's own ledger (invoices/receipts/allocations) is fetched only
+  // once they're picked, scoped to just that customer — not the whole table
+  // — and paginated (see fetchAllRows) so it never silently truncates.
+  useEffect(() => {
+    if (!supabase || !selectedCustomerId) {
+      setInvoices(null);
+      setReceipts(null);
+      setAllocations(null);
+      return;
+    }
+    const client = supabase;
+    let cancelled = false;
+    setInvoices(null);
+    setReceipts(null);
+    setAllocations(null);
+    setCustomerDataError(null);
+    (async () => {
+      const [inv, rcpt] = await Promise.all([
+        fetchAllRows<Invoice>((from, to) =>
+          client.from("invoices").select("*").eq("customer_id", selectedCustomerId).order("invoice_date").range(from, to)
+        ),
+        fetchAllRows<Receipt>((from, to) =>
+          client.from("receipts").select("*").eq("customer_id", selectedCustomerId).order("receipt_date").range(from, to)
+        ),
+      ]);
+      if (cancelled) return;
+      if (inv.error || rcpt.error) {
+        setCustomerDataError(inv.error || rcpt.error);
+        return;
+      }
+      const invoiceIds = inv.data.map((i) => i.id);
+      const alloc =
+        invoiceIds.length > 0
+          ? await fetchAllRows<ReceiptAllocation>((from, to) =>
+              client.from("receipt_allocations").select("*").in("invoice_id", invoiceIds).range(from, to)
+            )
+          : { data: [] as ReceiptAllocation[], error: null };
+      if (cancelled) return;
+      if (alloc.error) {
+        setCustomerDataError(alloc.error);
+        return;
+      }
+      setInvoices(inv.data);
+      setReceipts(rcpt.data);
+      setAllocations(alloc.data);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedCustomerId]);
 
   // Seed customer + date range from the URL once on mount, so a shared
   // statement link opens straight to the right view ("Copy Link" keeps the
@@ -204,7 +272,8 @@ export default function CustomerStatementPage() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [exportMenuOpen]);
 
-  const loaded = customers && invoices && receipts && allocations;
+  const customersLoaded = customers !== null;
+  const customerDataLoaded = invoices !== null && receipts !== null && allocations !== null;
 
   const sortedCustomers = useMemo(() => [...(customers ?? [])].sort((a, b) => a.name.localeCompare(b.name)), [customers]);
   const customerOptions = useMemo(
@@ -218,7 +287,8 @@ export default function CustomerStatementPage() {
   );
 
   // Per-invoice outstanding (total minus its receipt_allocations) — the same
-  // rule the AR Ageing report uses. Independent of the selected customer.
+  // rule the AR Ageing report uses. `invoices`/`allocations` are already
+  // scoped to the selected customer (fetched per-customer, above).
   const outstandingByInvoice = useMemo(() => {
     const map = new Map<string, number>();
     if (!invoices || !allocations) return map;
@@ -454,7 +524,7 @@ export default function CustomerStatementPage() {
     <div className="mx-auto max-w-5xl">
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4 print:hidden">
         <PageHeader title="Customer Statement" subtitle="Every invoice and receipt for one customer, in one running account." />
-        {isConfigured && selectedCustomer && (
+        {isConfigured && selectedCustomer && customerDataLoaded && !customerDataError && (
           <div className="flex flex-none flex-wrap items-center gap-2">
             <button
               type="button"
@@ -551,7 +621,7 @@ export default function CustomerStatementPage() {
         </div>
       )}
 
-      {isConfigured && !error && !loaded && (
+      {isConfigured && !error && !customersLoaded && (
         <div className="animate-pulse space-y-4">
           <div className="h-10 w-full max-w-sm rounded-lg bg-slate-100 dark:bg-slate-800/60" />
           <div className="h-16 w-full rounded-xl bg-slate-100 dark:bg-slate-800/60" />
@@ -559,7 +629,7 @@ export default function CustomerStatementPage() {
         </div>
       )}
 
-      {isConfigured && !error && loaded && (
+      {isConfigured && !error && customersLoaded && (
         <>
           <div className="mb-4 max-w-sm print:hidden">
             <FormField label="Customer">
@@ -573,7 +643,21 @@ export default function CustomerStatementPage() {
             </div>
           )}
 
-          {selectedCustomer && (
+          {selectedCustomer && customerDataError && (
+            <div role="alert" className="rounded-xl border border-red-300 bg-red-50 p-6 text-red-800 dark:border-red-500/40 dark:bg-red-950/40 dark:text-red-200 print:hidden">
+              <p className="font-semibold">Couldn&apos;t load this customer&apos;s transactions.</p>
+              <p className="mt-1 text-sm">{customerDataError}</p>
+            </div>
+          )}
+
+          {selectedCustomer && !customerDataError && !customerDataLoaded && (
+            <div className="animate-pulse space-y-4">
+              <div className="h-16 w-full rounded-xl bg-slate-100 dark:bg-slate-800/60" />
+              <div className="h-64 w-full rounded-xl bg-slate-100 dark:bg-slate-800/60" />
+            </div>
+          )}
+
+          {selectedCustomer && !customerDataError && customerDataLoaded && (
             <>
               {/* Date range filter */}
               <div className="mb-6 flex flex-wrap items-center gap-2 print:hidden">
