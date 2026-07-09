@@ -6,15 +6,15 @@
 
 export const DEMO_LOGINS = [
   { username: "admin", password: "admin123" },
-  { username: "finance", password: "finance123" },
+  { username: "finance", password: "verve123" },
 ];
 
 const SESSION_KEY = "ar-manager-session";
 
 export function checkLogin(username: string, password: string): boolean {
-  return DEMO_LOGINS.some(
-    (l) => l.username === username && l.password === password
-  );
+  const u = username.trim();
+  const p = password.trim();
+  return DEMO_LOGINS.some((l) => l.username === u && l.password === p);
 }
 
 export function signIn(username: string) {
