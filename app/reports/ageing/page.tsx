@@ -3,10 +3,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { supabase, isConfigured } from "@/lib/supabase";
-import type { Customer, Invoice, Receipt, ReceiptAllocation } from "@/lib/types";
+import type { Customer, Invoice, Receipt, ReceiptAllocation, ReminderTemplate } from "@/lib/types";
 import { PageHeader } from "@/components/PageHeader";
 import { NotConfigured } from "@/components/NotConfigured";
 import { FormField, inputClass } from "@/components/FormField";
+import { EmailComposeModal } from "@/components/EmailComposeModal";
 import * as XLSX from "xlsx";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -36,6 +37,7 @@ interface AgeingRow {
   id: string;
   code: string;
   name: string;
+  email: string | null;
   state: string;
   creditLimit: number;
   overLimit: boolean;
@@ -233,16 +235,21 @@ export default function AgeingReportPage() {
   const [exportTemplate, setExportTemplate] = useState<ExportTemplate>("summary");
   const [showPreview, setShowPreview] = useState(true);
 
+  const [reminderTemplates, setReminderTemplates] = useState<ReminderTemplate[] | null>(null);
+  const [reportCadence, setReportCadence] = useState<"One-time" | "Weekly" | "Monthly">("Weekly");
+  const [emailTarget, setEmailTarget] = useState<{ kind: "report" } | { kind: "followup"; row: AgeingRow } | null>(null);
+
   useEffect(() => {
     if (!supabase) return;
     (async () => {
-      const [cust, inv, rcpt, alloc] = await Promise.all([
+      const [cust, inv, rcpt, alloc, tmpl] = await Promise.all([
         supabase.from("customers").select("*"),
         supabase.from("invoices").select("*"),
         supabase.from("receipts").select("*"),
         supabase.from("receipt_allocations").select("*"),
+        supabase.from("reminder_templates").select("*"),
       ]);
-      const firstError = cust.error || inv.error || rcpt.error || alloc.error;
+      const firstError = cust.error || inv.error || rcpt.error || alloc.error || tmpl.error;
       if (firstError) {
         setError(firstError.message);
         return;
@@ -251,6 +258,7 @@ export default function AgeingReportPage() {
       setInvoices(inv.data as Invoice[]);
       setReceipts(rcpt.data as Receipt[]);
       setAllocations(alloc.data as ReceiptAllocation[]);
+      setReminderTemplates(tmpl.data as ReminderTemplate[]);
     })();
   }, []);
 
@@ -263,7 +271,7 @@ export default function AgeingReportPage() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [exportMenuOpen]);
 
-  const loaded = customers && invoices && receipts && allocations;
+  const loaded = customers && invoices && receipts && allocations && reminderTemplates;
 
   const customerIndex = useMemo(() => {
     const map = new Map<string, Customer & { state: string }>();
@@ -329,7 +337,7 @@ export default function AgeingReportPage() {
       if (!row) {
         const cust = customerIndex.get(l.customerId)!;
         const creditLimit = overrideLimit !== null ? overrideLimit : cust.credit_limit;
-        row = { id: cust.id, code: cust.code, name: cust.name, state: cust.state, creditLimit, overLimit: false, oldestOverdueDays: 0, priority: "Low", priorityRank: 1, ...EMPTY_BUCKETS };
+        row = { id: cust.id, code: cust.code, name: cust.name, email: cust.email, state: cust.state, creditLimit, overLimit: false, oldestOverdueDays: 0, priority: "Low", priorityRank: 1, ...EMPTY_BUCKETS };
         byCustomer.set(l.customerId, row);
       }
       row[l.bucket] += l.outstanding;
@@ -623,6 +631,70 @@ export default function AgeingReportPage() {
     doc.save(`ar-ageing-${exportTemplate}-${asOfDate}.pdf`);
   }
 
+  // ---- email: compose-and-hand-off to the user's own mail client ------------
+  // There's no email-sending backend here, so "send" always opens a pre-filled
+  // draft for a human to review and actually send.
+
+  function buildReportEmailDefaults() {
+    const subject = `${reportCadence === "One-time" ? "" : reportCadence + " "}AR Ageing Report — as of ${asOfLabel}`;
+    const body = [
+      `Hi,`,
+      ``,
+      `Here's the AR ageing snapshot as of ${asOfLabel}:`,
+      `- Total outstanding: ${formatCurrency(grandTotal.total)}`,
+      `- Overdue: ${formatCurrency(grandTotal.total - grandTotal.notDue)}`,
+      `- Needs attention (high priority): ${highPriorityCount} customer${highPriorityCount === 1 ? "" : "s"}`,
+      `- Over credit limit: ${overLimitCount} customer${overLimitCount === 1 ? "" : "s"}`,
+      `- DSO (trailing 90 days): ${dso === null ? "N/A" : `${dso.toFixed(0)} days`}`,
+      ``,
+      `Full report attached.`,
+      ``,
+      `Regards,`,
+    ].join("\n");
+    return {
+      title: `Email ${reportCadence} Report to Manager`,
+      defaultSubject: subject,
+      defaultBody: body,
+      attachmentNote: `Clicking "Open in Mail App" downloads ar-ageing-${exportTemplate}-${asOfDate}.pdf — attach that file before sending.`,
+      onSend: exportPdf,
+    };
+  }
+
+  function fillTemplate(text: string, vars: Record<string, string>) {
+    return text.replace(/\{(\w+)\}/g, (match, key) => vars[key] ?? match);
+  }
+
+  function buildFollowupEmailDefaults(row: AgeingRow) {
+    const oldestLine = lines
+      .filter((l) => l.customerId === row.id)
+      .sort((a, b) => b.daysOverdue - a.daysOverdue)[0];
+    const vars = {
+      customer: row.name,
+      amount: formatCurrency(row.total).replace("₹", ""),
+      days_overdue: String(row.oldestOverdueDays),
+      invoice_no: oldestLine?.invoiceNo ?? "your outstanding invoices",
+    };
+    const template = reminderTemplates?.[0];
+    const subject = template ? fillTemplate(template.subject, vars) : `Payment reminder — outstanding balance of ${formatCurrency(row.total)}`;
+    const body = template
+      ? fillTemplate(template.body, vars)
+      : [
+          `Dear ${row.name},`,
+          ``,
+          `Our records show an outstanding balance of ${formatCurrency(row.total)}` +
+            (row.oldestOverdueDays > 0 ? `, with the oldest invoice ${row.oldestOverdueDays} days overdue.` : "."),
+          `We would appreciate payment at your earliest convenience.`,
+          ``,
+          `Regards,`,
+        ].join("\n");
+    return {
+      title: `Follow Up — ${row.name}`,
+      defaultTo: row.email ?? "",
+      defaultSubject: subject,
+      defaultBody: body,
+    };
+  }
+
   const previewTable = loaded && showPreview ? buildExportTable() : null;
   const PREVIEW_ROWS = 5;
 
@@ -685,9 +757,29 @@ export default function AgeingReportPage() {
             <button type="button" onClick={() => window.print()} className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white transition-all duration-200 hover:bg-brand-700 active:scale-95">
               Print
             </button>
+            <FormField label="Cadence">
+              <select className={inputClass} value={reportCadence} onChange={(e) => setReportCadence(e.target.value as typeof reportCadence)}>
+                <option value="One-time">One-time</option>
+                <option value="Weekly">Weekly</option>
+                <option value="Monthly">Monthly</option>
+              </select>
+            </FormField>
+            <button
+              type="button"
+              onClick={() => setEmailTarget({ kind: "report" })}
+              className="rounded-lg border border-brand px-4 py-2 text-sm font-semibold text-brand transition-all duration-200 hover:bg-brand-50 active:scale-95 dark:border-brand-300 dark:text-brand-300 dark:hover:bg-brand-900/30"
+            >
+              Email Report to Manager
+            </button>
           </div>
         )}
       </div>
+      {reportCadence !== "One-time" && (
+        <p className="-mt-4 mb-2 text-xs text-slate-400 dark:text-slate-500 print:hidden">
+          &ldquo;{reportCadence}&rdquo; only sets the subject line — there&apos;s no backend here to send this automatically on a
+          schedule, so re-run this each {reportCadence === "Weekly" ? "week" : "month"} when it&apos;s due.
+        </p>
+      )}
       <p className="-mt-4 mb-2 text-xs text-slate-400 dark:text-slate-500 print:hidden">
         {EXPORT_TEMPLATES.find((t) => t.key === exportTemplate)?.hint}
       </p>
@@ -1005,6 +1097,13 @@ export default function AgeingReportPage() {
                               Over limit
                             </span>
                           )}
+                          <button
+                            type="button"
+                            onClick={() => setEmailTarget({ kind: "followup", row: r })}
+                            className="ml-2 text-xs font-medium text-brand hover:underline dark:text-brand-300 print:hidden"
+                          >
+                            Follow up
+                          </button>
                         </td>
                         {showLocationCol && <td className="px-4 py-3 text-slate-700 dark:text-slate-300">{r.state}</td>}
                         {showCreditLimitCol && <td className="px-4 py-3 text-right text-slate-700 dark:text-slate-300">{formatCurrency(r.creditLimit)}</td>}
@@ -1049,6 +1148,13 @@ export default function AgeingReportPage() {
             </table>
           </div>
         </>
+      )}
+
+      {emailTarget?.kind === "report" && (
+        <EmailComposeModal {...buildReportEmailDefaults()} onClose={() => setEmailTarget(null)} />
+      )}
+      {emailTarget?.kind === "followup" && (
+        <EmailComposeModal {...buildFollowupEmailDefaults(emailTarget.row)} onClose={() => setEmailTarget(null)} />
       )}
     </div>
   );
