@@ -128,6 +128,41 @@ function todayISO() {
   return new Date().toISOString().slice(0, 10);
 }
 
+// Formats a local Date as YYYY-MM-DD using its own calendar fields (not
+// toISOString, which converts to UTC and can shift the date by a day).
+function dateToISO(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+// Period-end presets for the "As of" filter — India's financial year runs
+// April to March, so quarters and years follow that, not the calendar year.
+// All three are always on/before today by construction (today always sits
+// inside the *current* month/quarter/FY, never a prior one), so none of
+// them need clamping against the max-date limit on the date picker.
+function fyStartDate(d: Date): Date {
+  const year = d.getMonth() >= 3 ? d.getFullYear() : d.getFullYear() - 1;
+  return new Date(year, 3, 1);
+}
+
+function endOfLastMonth(base: Date): Date {
+  return new Date(base.getFullYear(), base.getMonth(), 0);
+}
+
+function endOfLastFyQuarter(base: Date): Date {
+  const fyStart = fyStartDate(base);
+  const monthsSinceFyStart = (base.getFullYear() - fyStart.getFullYear()) * 12 + (base.getMonth() - fyStart.getMonth());
+  const quarterStart = new Date(fyStart.getFullYear(), fyStart.getMonth() + Math.floor(monthsSinceFyStart / 3) * 3, 1);
+  return new Date(quarterStart.getFullYear(), quarterStart.getMonth(), 0);
+}
+
+function endOfLastFinancialYear(base: Date): Date {
+  const fyStart = fyStartDate(base);
+  return new Date(fyStart.getFullYear(), fyStart.getMonth(), 0);
+}
+
 function bucketFor(dueDate: string, asOf: Date): Bucket {
   const due = toDateOnly(dueDate);
   if (due >= asOf) return "notDue";
@@ -442,6 +477,18 @@ export default function AgeingReportPage() {
 
   const activeBucketCols = BUCKET_COLS.filter((b) => visibleBuckets[b.key]);
   const asOfLabel = toDateOnly(asOfDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+  const formatShortDate = (iso: string) => toDateOnly(iso).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+  const presetDates = useMemo(() => {
+    const today = toDateOnly(todayISO());
+    return {
+      today: todayISO(),
+      lastMonth: dateToISO(endOfLastMonth(today)),
+      lastQuarter: dateToISO(endOfLastFyQuarter(today)),
+      lastYear: dateToISO(endOfLastFinancialYear(today)),
+    };
+  }, []);
+  const asOfPreset =
+    (Object.entries(presetDates).find(([, v]) => v === asOfDate)?.[0] as keyof typeof presetDates | undefined) ?? "custom";
   const creditLimitColLabel = overrideLimit !== null ? "Credit Limit (override)" : "Credit Limit";
   const filtersActive =
     search !== "" || locationFilter !== "all" || bucketFilter !== "all" || minOutstanding !== "" ||
@@ -751,6 +798,22 @@ export default function AgeingReportPage() {
 
           {/* Filters */}
           <div className="mb-3 grid gap-3 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900 print:hidden sm:grid-cols-2 lg:grid-cols-6">
+            <FormField label="As of — quick pick">
+              <select
+                className={inputClass}
+                value={asOfPreset}
+                onChange={(e) => {
+                  const key = e.target.value as keyof typeof presetDates | "custom";
+                  if (key !== "custom") setAsOfDate(presetDates[key]);
+                }}
+              >
+                <option value="today">Today ({formatShortDate(presetDates.today)})</option>
+                <option value="lastMonth">End of Last Month ({formatShortDate(presetDates.lastMonth)})</option>
+                <option value="lastQuarter">End of Last Quarter ({formatShortDate(presetDates.lastQuarter)})</option>
+                <option value="lastYear">End of Last Financial Year ({formatShortDate(presetDates.lastYear)})</option>
+                <option value="custom">Custom date…</option>
+              </select>
+            </FormField>
             <FormField label="As of date">
               <input
                 type="date"
