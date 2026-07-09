@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import * as XLSX from "xlsx";
 import { supabase, isConfigured } from "@/lib/supabase";
 import { inr, parseISODate, todayMidnight, addCalendarDays, daysBetween, toISODate } from "@/lib/format";
 import { PageHeader } from "@/components/PageHeader";
@@ -8,6 +9,7 @@ import { NotConfigured } from "@/components/NotConfigured";
 import { DataTable, type Column } from "@/components/DataTable";
 import { inputClass } from "@/components/FormField";
 import { BarChart, type BarChartDatum } from "@/components/BarChart";
+import { ExportButton } from "@/components/ExportButton";
 
 /*
   Cashflow Projection: buckets outstanding-but-unpaid invoices by their expected
@@ -301,6 +303,34 @@ export default function CashflowPage() {
     return { key: p.key, label: p.label, overdueValue, overdueCount, onTimeValue, onTimeCount, cumulative: p.cumulative };
   });
 
+  function handleExport() {
+    const basisLabel: Record<Basis, string> = { manual: "Manual", predicted: "Predicted", due: "Due date" };
+    const invoiceRows = visibleRows.flatMap((p) =>
+      p.invoices.map((inv) => [
+        inv.invoice_no,
+        inv.customerName,
+        p.label,
+        inv.due_date,
+        inv.effDate,
+        Number(inv.effAmount.toFixed(2)),
+        basisLabel[inv.basis],
+      ])
+    );
+    const invoiceSheet = XLSX.utils.aoa_to_sheet([
+      ["Invoice #", "Customer", "Period", "Due Date", "Expected Date", "Expected Amount", "Basis"],
+      ...invoiceRows,
+    ]);
+
+    // Second sheet: one row per period — period, invoice_count, expected_inflow, cumulative_inflow.
+    const periodRows = visibleRows.map((p) => [p.label, p.count, Number(p.total.toFixed(2)), Number(p.cumulative.toFixed(2))]);
+    const periodSheet = XLSX.utils.aoa_to_sheet([["Period", "Invoice Count", "Expected Inflow", "Cumulative Inflow"], ...periodRows]);
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, invoiceSheet, "Invoices");
+    XLSX.utils.book_append_sheet(workbook, periodSheet, "Periods");
+    XLSX.writeFile(workbook, `cashflow-projection-${toISODate(today)}.xlsx`);
+  }
+
   const periodColumns: Column<(typeof visibleRows)[number]>[] = [
     { key: "label", header: "Period" },
     { key: "count", header: "# Invoices", className: "text-right" },
@@ -400,23 +430,26 @@ export default function CashflowPage() {
         title="Cashflow Projection"
         subtitle="Expected collections from open invoices — adjust per invoice as customers confirm plans."
         action={
-          <div className="flex rounded-lg border border-slate-300 p-0.5 dark:border-slate-700">
-            <button
-              onClick={() => setMode("week")}
-              className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-                mode === "week" ? "bg-brand text-white" : "text-slate-600 dark:text-slate-300"
-              }`}
-            >
-              Weekly (12 wks)
-            </button>
-            <button
-              onClick={() => setMode("month")}
-              className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-                mode === "month" ? "bg-brand text-white" : "text-slate-600 dark:text-slate-300"
-              }`}
-            >
-              Monthly (6 mo)
-            </button>
+          <div className="flex flex-wrap items-center gap-2">
+            {!loading && rows.length > 0 && <ExportButton onClick={handleExport} />}
+            <div className="flex rounded-lg border border-slate-300 p-0.5 dark:border-slate-700">
+              <button
+                onClick={() => setMode("week")}
+                className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                  mode === "week" ? "bg-brand text-white" : "text-slate-600 dark:text-slate-300"
+                }`}
+              >
+                Weekly (12 wks)
+              </button>
+              <button
+                onClick={() => setMode("month")}
+                className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                  mode === "month" ? "bg-brand text-white" : "text-slate-600 dark:text-slate-300"
+                }`}
+              >
+                Monthly (6 mo)
+              </button>
+            </div>
           </div>
         }
       />

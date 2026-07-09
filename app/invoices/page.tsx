@@ -10,8 +10,10 @@ import { NotConfigured } from "@/components/NotConfigured";
 import { DataTable, type Column } from "@/components/DataTable";
 import { StatusBadge } from "@/components/StatusBadge";
 import { FormField, inputClass } from "@/components/FormField";
-import { formatCurrency, formatDate } from "@/lib/format";
+import { formatCurrency, formatDate, todayISO } from "@/lib/format";
 import { buildAllocationMap, paidAmount, balanceDue, displayStatus } from "@/lib/invoice";
+import { downloadCsv } from "@/lib/csv";
+import { ExportButton } from "@/components/ExportButton";
 
 interface InvoiceRow {
   id: string;
@@ -122,6 +124,22 @@ export default function InvoiceListPage() {
 
   const customerFilterName = customerId ? (rows ?? []).find((r) => r.customer_id === customerId)?.customerName : null;
 
+  function handleExport() {
+    downloadCsv(
+      `sales-invoices-${todayISO()}.csv`,
+      ["Invoice Number", "Invoice Date", "Customer", "Total Amount", "Paid Amount", "Balance", "Status"],
+      filtered.map((r) => [
+        r.invoice_no,
+        formatDate(r.invoice_date),
+        r.customerName,
+        r.total.toFixed(2),
+        r.paid.toFixed(2),
+        r.balance.toFixed(2),
+        r.status,
+      ])
+    );
+  }
+
   const columns: Column<InvoiceRow>[] = [
     {
       key: "invoice_no",
@@ -183,12 +201,15 @@ export default function InvoiceListPage() {
         subtitle="Search, filter, and manage every invoice."
         action={
           isConfigured && (
-            <Link
-              href="/invoices/new"
-              className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white transition-all duration-200 hover:bg-brand-700 active:scale-95"
-            >
-              + New Invoice
-            </Link>
+            <div className="flex flex-wrap items-center gap-2">
+              <ExportButton onClick={handleExport} />
+              <Link
+                href="/invoices/new"
+                className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white transition-all duration-200 hover:bg-brand-700 active:scale-95"
+              >
+                + New Invoice
+              </Link>
+            </div>
           )
         }
       />
