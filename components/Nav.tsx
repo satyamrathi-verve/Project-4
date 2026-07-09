@@ -22,6 +22,7 @@ const LINKS: { href: string; label: string; built: boolean; icon: string }[] = [
   { href: "/reports/statement", label: "Customer Statement", built: true, icon: "statement" },
   { href: "/reports/ageing", label: "AR Ageing", built: true, icon: "ageing" },
   { href: "/cashflow", label: "Cashflow Projection", built: true, icon: "cashflow" },
+  { href: "/access", label: "User & Access", built: true, icon: "access" },
   { href: "/dashboard", label: "Dashboard", built: true, icon: "dashboard" },
 ];
 
