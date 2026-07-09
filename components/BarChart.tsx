@@ -64,7 +64,7 @@ export function BarChart({ data }: { data: BarChartDatum[] }) {
   const translateX = align === "start" ? "0%" : align === "end" ? "-100%" : "-50%";
 
   return (
-    <div className="overflow-x-auto overflow-y-visible rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+    <div className="overflow-x-auto overflow-y-visible">
       <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-slate-500 dark:text-slate-400">
         <span className="flex items-center gap-1.5">
           <span className="h-2.5 w-2.5 rounded-sm bg-brand dark:bg-brand-400" /> On-time expected

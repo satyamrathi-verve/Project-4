@@ -283,7 +283,7 @@ export default function UploadReportPage() {
               className={`flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed p-10 text-center transition-colors ${
                 dragActive
                   ? "border-brand bg-brand-50 dark:border-brand-400 dark:bg-brand-900/20"
-                  : "border-slate-300 bg-white dark:border-slate-700 dark:bg-slate-900"
+                  : "border-slate-300 dark:border-slate-700"
               }`}
             >
               <ScreenIcon name="upload" className="h-8 w-8 text-slate-400 dark:text-slate-500" />
@@ -313,7 +313,7 @@ export default function UploadReportPage() {
               )}
             </div>
 
-            <div className="flex flex-col justify-center gap-2 rounded-xl border border-slate-200 bg-white p-4 text-sm dark:border-slate-800 dark:bg-slate-900 sm:w-72">
+            <div className="flex flex-col justify-center gap-2 p-4 text-sm sm:w-72">
               <p className="font-semibold text-slate-700 dark:text-slate-300">Expected columns</p>
               <p className="text-xs text-slate-500 dark:text-slate-400">{EXPECTED_COLUMNS.join(", ")}</p>
               <p className="text-xs text-slate-400 dark:text-slate-500">Only code and name are required; the rest can be left blank.</p>
@@ -397,10 +397,10 @@ export default function UploadReportPage() {
                 </button>
               </div>
 
-              <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+              <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-slate-200 bg-slate-50 text-left dark:border-slate-800 dark:bg-slate-800/50">
+                    <tr className="border-b border-slate-200 text-left dark:border-slate-800">
                       <th className="whitespace-nowrap px-4 py-3 font-semibold text-slate-600 dark:text-slate-300">Row</th>
                       <th className="whitespace-nowrap px-4 py-3 font-semibold text-slate-600 dark:text-slate-300">Code</th>
                       <th className="whitespace-nowrap px-4 py-3 font-semibold text-slate-600 dark:text-slate-300">Name</th>

@@ -37,7 +37,7 @@ function Stat({ label, value, valueClassName }: { label: string; value: string; 
   return (
     <div>
       <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{label}</p>
-      <p className={`text-base font-bold tabular-nums ${valueClassName}`}>{value}</p>
+      <p className={`text-lg font-bold tabular-nums ${valueClassName}`}>{value}</p>
     </div>
   );
 }
@@ -184,14 +184,14 @@ export default function CustomerStatementPage() {
           </div>
 
           {!selectedCustomer && (
-            <div className="rounded-xl border border-dashed border-slate-300 bg-white p-10 text-center text-sm text-slate-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-500 print:hidden">
+            <div className="py-10 text-center text-sm text-slate-400 dark:text-slate-500 print:hidden">
               Select a customer above to view their statement.
             </div>
           )}
 
           {selectedCustomer && (
             <>
-              <div className="mb-4 flex flex-wrap items-center gap-x-6 gap-y-3 rounded-xl border border-slate-200 bg-white px-5 py-3 dark:border-slate-800 dark:bg-slate-900">
+              <div className="mb-6 flex flex-wrap items-center gap-x-6 gap-y-4">
                 <div>
                   <p className="font-semibold text-slate-800 dark:text-slate-100">{selectedCustomer.name}</p>
                   <p className="text-xs text-slate-400 dark:text-slate-500">{selectedCustomer.code}</p>
@@ -206,10 +206,10 @@ export default function CustomerStatementPage() {
                 <Stat label="Closing Balance" value={formatCurrency(closingBalance)} valueClassName="text-brand dark:text-brand-300" />
               </div>
 
-              <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 dark:print:border-slate-200 dark:print:bg-white">
+              <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-slate-200 bg-slate-50 text-left dark:border-slate-800 dark:bg-slate-800/50 dark:print:border-slate-200 dark:print:bg-slate-50">
+                    <tr className="border-b border-slate-200 text-left dark:border-slate-800 dark:print:border-slate-200">
                       <th className="whitespace-nowrap px-4 py-3 font-semibold text-slate-600 dark:text-slate-300 dark:print:text-slate-600">Date</th>
                       <th className="whitespace-nowrap px-4 py-3 font-semibold text-slate-600 dark:text-slate-300 dark:print:text-slate-600">Particulars</th>
                       <th className="whitespace-nowrap px-4 py-3 text-right font-semibold text-slate-600 dark:text-slate-300 dark:print:text-slate-600">Debit</th>
@@ -258,7 +258,7 @@ export default function CustomerStatementPage() {
                         </tr>
                       ))
                     )}
-                    <tr className="bg-slate-50 font-semibold dark:bg-slate-800/50 dark:print:bg-slate-50">
+                    <tr className="border-t border-slate-300 font-semibold dark:border-slate-700 dark:print:border-slate-300">
                       <td className="px-4 py-3 text-slate-800 dark:text-slate-100 dark:print:text-slate-800" colSpan={2}>
                         Closing Balance
                       </td>

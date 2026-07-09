@@ -1,13 +1,12 @@
 "use client";
 
 import { Fragment, useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import { supabase, isConfigured } from "@/lib/supabase";
 import type { Company, Customer, Invoice, InvoiceItem, Receipt, ReceiptAllocation, ReceiptMode } from "@/lib/types";
-import { PageHeader } from "@/components/PageHeader";
 import { NotConfigured } from "@/components/NotConfigured";
 import { DataTable, type Column } from "@/components/DataTable";
 import { StatusBadge } from "@/components/StatusBadge";
+import { IconButton, IconLink, ActionIcons } from "@/components/IconButton";
 import { Attachments } from "@/components/Attachments";
 import { VerveLogo } from "@/components/VerveLogo";
 import { FormField, inputClass } from "@/components/FormField";
@@ -410,38 +409,49 @@ export default function InvoiceViewPage({ params }: { params: { id: string } }) 
     <div className="mx-auto max-w-4xl print:max-w-none">
       <style>{DOC_STYLE}</style>
 
-      <div className="flex items-end justify-between gap-4 print:hidden">
-        <PageHeader title={`Invoice ${invoice.invoice_no}`} subtitle={`${formatDate(invoice.invoice_date)} · due ${formatDate(invoice.due_date)}`} />
-        <div className="mb-6 flex flex-none items-center gap-2">
-          <StatusBadge status={status} />
-          <Link
-            href={`/invoices/${invoice.id}/edit`}
-            className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
-          >
-            Edit
-          </Link>
-          <button
-            type="button"
-            onClick={handleSendEmail}
-            disabled={!customer.email || emailStatus === "sending"}
-            title={!customer.email ? "This customer has no email on file" : undefined}
-            className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
-          >
-            {emailStatus === "sending" ? "Sending…" : emailStatus === "sent" ? "Sent ✓" : "Send Email"}
-          </button>
-          <button
-            type="button"
-            onClick={() => window.print()}
-            className="rounded-lg bg-brand px-3 py-2 text-sm font-semibold text-white transition-all duration-200 hover:bg-brand-700 active:scale-95"
-          >
-            Print
-          </button>
-          <Link
-            href="/invoices"
-            className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
-          >
-            Back
-          </Link>
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-4 border-b border-slate-200 pb-5 dark:border-slate-800 print:hidden">
+        <div>
+          <div className="flex flex-wrap items-center gap-3">
+            <h2 className="text-2xl font-bold text-brand dark:text-white">Invoice {invoice.invoice_no}</h2>
+            <StatusBadge status={status} />
+          </div>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+            Issued {formatDate(invoice.invoice_date)} · Due {formatDate(invoice.due_date)} · {customer.name}
+          </p>
+        </div>
+        <div className="flex flex-none items-center gap-5">
+          <div className="text-right">
+            <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">Balance Due</p>
+            <p className={`text-xl font-bold tabular-nums ${balance > 0.005 ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400"}`}>
+              {formatCurrency(balance)}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <IconLink label="Back to invoices" href="/invoices">
+              {ActionIcons.back}
+            </IconLink>
+            <IconLink label="Edit invoice" href={`/invoices/${invoice.id}/edit`}>
+              {ActionIcons.edit}
+            </IconLink>
+            <IconButton
+              label={
+                !customer.email
+                  ? "This customer has no email on file"
+                  : emailStatus === "sending"
+                  ? "Sending…"
+                  : emailStatus === "sent"
+                  ? "Email sent"
+                  : "Send email"
+              }
+              onClick={handleSendEmail}
+              disabled={!customer.email || emailStatus === "sending"}
+            >
+              {emailStatus === "sending" ? ActionIcons.spinner : emailStatus === "sent" ? ActionIcons.check : ActionIcons.mail}
+            </IconButton>
+            <IconButton label="Print / Save as PDF" variant="primary" onClick={() => window.print()}>
+              {ActionIcons.print}
+            </IconButton>
+          </div>
         </div>
       </div>
 
@@ -768,10 +778,10 @@ export default function InvoiceViewPage({ params }: { params: { id: string } }) 
           </form>
         )}
 
-        <DataTable columns={paymentColumns} rows={payments} empty="No payments recorded against this invoice yet." />
+        <DataTable columns={paymentColumns} rows={payments} searchable={false} empty="No payments recorded against this invoice yet." />
       </div>
 
-      <div className="mt-4 print:hidden">
+      <div className="mt-4 border-t border-slate-200 pt-6 dark:border-slate-800 print:hidden">
         <Attachments invoiceId={invoice.id} />
       </div>
 

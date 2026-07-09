@@ -2,28 +2,29 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { supabase, isConfigured } from "@/lib/supabase";
-import { inr, parseISODate, todayMidnight, addCalendarDays, formatShortDate } from "@/lib/format";
+import { inr, inrCompact, parseISODate, todayMidnight, addCalendarDays, formatShortDate, toISODate } from "@/lib/format";
 import { PageHeader } from "@/components/PageHeader";
 import { NotConfigured } from "@/components/NotConfigured";
 import { DataTable, type Column } from "@/components/DataTable";
 import { inputClass } from "@/components/FormField";
 import { ScreenIcon } from "@/components/icons";
+import { LineChart, CHART_COLORS } from "@/components/LineChart";
 import { StatusPill, effectiveStatus, daysOverdue, type EffectiveStatus } from "@/components/StatusPill";
 import type { InvoiceStatus } from "@/lib/types";
 
 /*
-  Dashboard: the overview that pulls the rest of the app together — customers,
-  invoices, and receipt_allocations, read-only. Nothing here is computed on
-  the backend; every number (outstanding, overdue, status) uses the same
-  rules as the Ageing report and Cashflow Projection so they always agree.
+  Dashboard: the decision-making overview — KPIs, trends, and drill-down reports.
+  Every number (outstanding, overdue, status) uses the same rules as the Ageing
+  report and Cashflow Projection so they always agree.
 
-  Two "industry standard" additions beyond the base spec:
-  - DSO (Days Sales Outstanding): the classic AR health metric — how many
-    days of sales are currently tied up in receivables. Computed here as
-    (total outstanding ÷ last-90-days invoicing) × 90.
-  - Credit limit breach flag on Top Debtors: a customer whose outstanding
-    balance exceeds their approved credit_limit is flagged "Over limit" —
-    a standard AR control so collections knows who to stop shipping to.
+  Reports on this screen:
+  - KPI row + DSO banner (AR health at a glance)
+  - Sales vs collections by month (are we collecting what we bill?)
+  - Total debtors month-end trend (is the receivables book growing?)
+  - Cashflow outlook: expected collections by week from open invoice due dates
+  - Sales by customer (who drives revenue) and Overdue by customer (who to chase)
+  - Invoice status breakdown, Top 5 debtors with credit-limit breach flags
+  - Recent invoices with a status filter
 */
 
 interface CustomerLite {
@@ -44,6 +45,20 @@ interface InvoiceRow {
   outstanding: number;
 }
 
+interface ReceiptLite {
+  id: string;
+  receipt_date: string;
+  amount: number;
+}
+
+interface OverdueByCustomerRow {
+  id: string;
+  name: string;
+  invoices: number;
+  amount: number;
+  maxDays: number;
+}
+
 const STATUS_ORDER: EffectiveStatus[] = ["overdue", "partial", "open", "paid"];
 const STATUS_LABEL: Record<EffectiveStatus, string> = { overdue: "Overdue", partial: "Partial", open: "Open", paid: "Paid" };
 const STATUS_BAR: Record<EffectiveStatus, string> = {
@@ -56,6 +71,8 @@ const STATUS_BAR: Record<EffectiveStatus, string> = {
 export default function DashboardPage() {
   const [customers, setCustomers] = useState<CustomerLite[] | null>(null);
   const [invoices, setInvoices] = useState<InvoiceRow[] | null>(null);
+  const [receipts, setReceipts] = useState<ReceiptLite[] | null>(null);
+  const [allocations, setAllocations] = useState<{ invoice_id: string; receipt_id: string; amount: number }[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [recentStatusFilter, setRecentStatusFilter] = useState<"all" | EffectiveStatus>("all");
 
@@ -67,14 +84,16 @@ export default function DashboardPage() {
         { data: custData, error: custErr },
         { data: invData, error: invErr },
         { data: allocData, error: allocErr },
+        { data: rcptData, error: rcptErr },
       ] = await Promise.all([
         supabase.from("customers").select("id, name, credit_limit"),
         supabase.from("invoices").select("id, invoice_no, invoice_date, customer_id, due_date, total, status, customers(name)"),
-        supabase.from("receipt_allocations").select("invoice_id, amount"),
+        supabase.from("receipt_allocations").select("invoice_id, receipt_id, amount"),
+        supabase.from("receipts").select("id, receipt_date, amount"),
       ]);
 
-      if (custErr || invErr || allocErr) {
-        if (!cancelled) setError(custErr?.message || invErr?.message || allocErr?.message || "Failed to load dashboard.");
+      if (custErr || invErr || allocErr || rcptErr) {
+        if (!cancelled) setError(custErr?.message || invErr?.message || allocErr?.message || rcptErr?.message || "Failed to load dashboard.");
         return;
       }
 
@@ -101,6 +120,8 @@ export default function DashboardPage() {
       if (!cancelled) {
         setCustomers(custData ?? []);
         setInvoices(builtInvoices);
+        setAllocations((allocData ?? []).map((a) => ({ ...a, amount: Number(a.amount) })));
+        setReceipts((rcptData ?? []).map((r) => ({ ...r, amount: Number(r.amount) })));
       }
     })();
     return () => {
@@ -108,10 +129,10 @@ export default function DashboardPage() {
     };
   }, []);
 
-  const loading = customers === null || invoices === null;
+  const loading = customers === null || invoices === null || receipts === null || allocations === null;
 
   const stats = useMemo(() => {
-    if (!customers || !invoices) return null;
+    if (!customers || !invoices || !receipts || !allocations) return null;
     const today = todayMidnight();
     const unpaid = invoices.filter((i) => i.status !== "paid" && i.outstanding > 0.005);
     const overdue = unpaid.filter((i) => parseISODate(i.due_date) < today);
@@ -121,6 +142,102 @@ export default function DashboardPage() {
     const creditSales90 = invoices.filter((i) => parseISODate(i.invoice_date) >= in90).reduce((s, i) => s + i.total, 0);
     const dso = creditSales90 > 0 ? (totalOutstanding / creditSales90) * 90 : 0;
 
+    // ---- This-month KPIs -------------------------------------------------
+    const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+    const billedThisMonth = invoices.filter((i) => parseISODate(i.invoice_date) >= monthStart).reduce((s, i) => s + i.total, 0);
+    const collectedThisMonth = receipts.filter((r) => parseISODate(r.receipt_date) >= monthStart).reduce((s, r) => s + r.amount, 0);
+
+    // ---- Monthly buckets (last 6 months, oldest → newest) ----------------
+    const months: { start: Date; end: Date; label: string }[] = [];
+    for (let k = 5; k >= 0; k--) {
+      const start = new Date(today.getFullYear(), today.getMonth() - k, 1);
+      const end = new Date(today.getFullYear(), today.getMonth() - k + 1, 0); // last day of month
+      const label = start.toLocaleDateString("en-IN", { month: "short" }) + (start.getMonth() === 0 || k === 5 ? ` ${String(start.getFullYear()).slice(2)}` : "");
+      months.push({ start, end, label });
+    }
+    const monthIndex = (d: Date) => months.findIndex((m) => d >= m.start && d <= m.end);
+
+    const billedByMonth = months.map(() => 0);
+    for (const i of invoices) {
+      const idx = monthIndex(parseISODate(i.invoice_date));
+      if (idx >= 0) billedByMonth[idx] += i.total;
+    }
+    const collectedByMonth = months.map(() => 0);
+    for (const r of receipts) {
+      const idx = monthIndex(parseISODate(r.receipt_date));
+      if (idx >= 0) collectedByMonth[idx] += r.amount;
+    }
+
+    // ---- Total debtors, month-end trend ----------------------------------
+    // Outstanding at date D = invoices raised on/before D − allocations whose
+    // receipt was dated on/before D.
+    const receiptDateById = new Map(receipts.map((r) => [r.id, parseISODate(r.receipt_date)]));
+    const debtorsMonthEnd = months.map((m) => {
+      const capEnd = m.end > today ? today : m.end;
+      let billed = 0;
+      for (const i of invoices) if (parseISODate(i.invoice_date) <= capEnd) billed += i.total;
+      let collected = 0;
+      for (const a of allocations) {
+        const rd = receiptDateById.get(a.receipt_id);
+        if (rd && rd <= capEnd) collected += a.amount;
+      }
+      return Math.max(0, billed - collected);
+    });
+
+    // ---- Cashflow outlook: expected collections, next 8 weeks -------------
+    const weekLabels: string[] = ["Overdue"];
+    const weekExpected: number[] = [0];
+    for (let w = 0; w < 7; w++) {
+      const ws = addCalendarDays(today, w * 7);
+      weekLabels.push(formatShortDate(toISODate(ws)).replace(/ \d{4}$/, ""));
+      weekExpected.push(0);
+    }
+    for (const i of unpaid) {
+      const due = parseISODate(i.due_date);
+      if (due < today) weekExpected[0] += i.outstanding;
+      else {
+        const w = Math.floor((due.getTime() - today.getTime()) / (7 * 86400000));
+        if (w <= 6) weekExpected[w + 1] += i.outstanding;
+        else weekExpected[7] += i.outstanding; // beyond the horizon folds into the last week
+      }
+    }
+    const weekCumulative = weekExpected.reduce<number[]>((acc, v, i) => {
+      acc.push((acc[i - 1] ?? 0) + v);
+      return acc;
+    }, []);
+
+    // ---- Sales by customer (all-time billed, top 8) -----------------------
+    const billedByCustomer = new Map<string, number>();
+    for (const i of invoices) billedByCustomer.set(i.customer_id, (billedByCustomer.get(i.customer_id) ?? 0) + i.total);
+    const customerById = new Map(customers.map((c) => [c.id, c]));
+    const salesByCustomer = Array.from(billedByCustomer.entries())
+      .map(([cid, amount]) => ({ id: cid, name: customerById.get(cid)?.name ?? "—", amount }))
+      .sort((a, b) => b.amount - a.amount)
+      .slice(0, 8);
+
+    // Monthly billing per top-4 customer, over the same 6 month buckets (line chart).
+    const top4 = salesByCustomer.slice(0, 4);
+    const top4Index = new Map(top4.map((c, i) => [c.id, i]));
+    const salesTrendByCustomer = top4.map((c) => ({ name: c.name, values: months.map(() => 0) }));
+    for (const i of invoices) {
+      const ci = top4Index.get(i.customer_id);
+      if (ci === undefined) continue;
+      const mi = monthIndex(parseISODate(i.invoice_date));
+      if (mi >= 0) salesTrendByCustomer[ci].values[mi] += i.total;
+    }
+
+    // ---- Overdue by customer ----------------------------------------------
+    const overdueMap = new Map<string, OverdueByCustomerRow>();
+    for (const i of overdue) {
+      const row = overdueMap.get(i.customer_id) ?? { id: i.customer_id, name: i.customerName, invoices: 0, amount: 0, maxDays: 0 };
+      row.invoices += 1;
+      row.amount += i.outstanding;
+      row.maxDays = Math.max(row.maxDays, daysOverdue(i.due_date));
+      overdueMap.set(i.customer_id, row);
+    }
+    const overdueByCustomer = Array.from(overdueMap.values()).sort((a, b) => b.amount - a.amount);
+
+    // ---- Status breakdown + top debtors (as before) ------------------------
     const statusStats: Record<EffectiveStatus, { count: number; amount: number }> = {
       open: { count: 0, amount: 0 },
       partial: { count: 0, amount: 0 },
@@ -137,7 +254,6 @@ export default function DashboardPage() {
     for (const inv of unpaid) {
       outstandingByCustomer.set(inv.customer_id, (outstandingByCustomer.get(inv.customer_id) ?? 0) + inv.outstanding);
     }
-    const customerById = new Map(customers.map((c) => [c.id, c]));
     const topDebtors = Array.from(outstandingByCustomer.entries())
       .map(([customerId, outstanding]) => {
         const c = customerById.get(customerId);
@@ -159,11 +275,23 @@ export default function DashboardPage() {
       overdueCount: overdue.length,
       totalOutstanding,
       dso,
+      billedThisMonth,
+      collectedThisMonth,
+      monthLabels: months.map((m) => m.label),
+      billedByMonth,
+      collectedByMonth,
+      debtorsMonthEnd,
+      weekLabels,
+      weekExpected,
+      weekCumulative,
+      salesByCustomer,
+      salesTrendByCustomer,
+      overdueByCustomer,
       statusStats,
       topDebtors,
       recent,
     };
-  }, [customers, invoices]);
+  }, [customers, invoices, receipts, allocations]);
 
   const visibleRecent = useMemo(() => {
     if (!stats) return [];
@@ -181,7 +309,7 @@ export default function DashboardPage() {
       render: (r) => <span className="font-medium text-brand dark:text-brand-300">{r.invoice_no}</span>,
     },
     { key: "customerName", header: "Customer" },
-    { key: "total", header: "Total", className: "text-right", render: (r) => inr.format(r.total) },
+    { key: "total", header: "Total", className: "text-right", render: (r) => inr.format(r.total), sortValue: (r) => r.total },
     {
       key: "status",
       header: "Status",
@@ -197,9 +325,22 @@ export default function DashboardPage() {
     { key: "due_date", header: "Due Date", render: (r) => formatShortDate(r.due_date) },
   ];
 
+  const overdueColumns: Column<OverdueByCustomerRow>[] = [
+    { key: "name", header: "Customer" },
+    { key: "invoices", header: "Invoices", className: "text-right", sortValue: (r) => r.invoices },
+    { key: "amount", header: "Overdue Amount", className: "text-right", render: (r) => <span className="font-semibold text-red-600 dark:text-red-400">{inr.format(r.amount)}</span>, sortValue: (r) => r.amount },
+    {
+      key: "maxDays",
+      header: "Oldest",
+      className: "text-right",
+      render: (r) => <span className={r.maxDays > 60 ? "font-semibold text-red-600 dark:text-red-400" : ""}>{r.maxDays}d</span>,
+      sortValue: (r) => r.maxDays,
+    },
+  ];
+
   return (
     <div className="mx-auto max-w-6xl">
-      <PageHeader title="Dashboard" subtitle="Your AR at a glance — customers, invoices, and what's still owed." />
+      <PageHeader title="Dashboard" subtitle="Your AR at a glance — what's billed, what's collected, and what needs chasing." />
 
       {!isConfigured && <NotConfigured />}
 
@@ -214,14 +355,18 @@ export default function DashboardPage() {
 
       {isConfigured && !error && !loading && stats && (
         <>
-          <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <KpiTile icon="customers" label="Total Customers" value={stats.totalCustomers} />
-            <KpiTile icon="invoices" label="Total Invoices" value={stats.totalInvoices} />
-            <KpiTile icon="ageing" label="Overdue Invoices" value={stats.overdueCount} tone={stats.overdueCount > 0 ? "warn" : "default"} />
-            <KpiTile icon="cashflow" label="Total Outstanding" value={inr.format(stats.totalOutstanding)} tone="brand" />
+          {/* KPI row */}
+          <div className="mb-8 grid grid-cols-2 gap-6 sm:grid-cols-3 lg:grid-cols-6 lg:gap-0 lg:divide-x lg:divide-slate-200 lg:dark:divide-slate-800">
+            <KpiTile icon="customers" label="Customers" value={stats.totalCustomers} />
+            <KpiTile icon="invoices" label="Invoices" value={stats.totalInvoices} />
+            <KpiTile icon="ageing" label="Overdue" value={stats.overdueCount} tone={stats.overdueCount > 0 ? "warn" : "default"} />
+            <KpiTile icon="cashflow" label="Outstanding" value={inrCompact(stats.totalOutstanding)} tone="brand" />
+            <KpiTile icon="invoices" label="Billed (this mo.)" value={inrCompact(stats.billedThisMonth)} />
+            <KpiTile icon="receipts" label="Collected (this mo.)" value={inrCompact(stats.collectedThisMonth)} tone="good" />
           </div>
 
-          <div className="mb-6 flex flex-col justify-between gap-4 rounded-xl border border-brand/20 bg-gradient-to-r from-brand-50 to-white p-5 dark:border-brand-400/20 dark:from-brand-900/20 dark:to-slate-900 sm:flex-row sm:items-center">
+          {/* DSO banner */}
+          <div className="mb-8 flex flex-col justify-between gap-4 rounded-xl border border-brand/20 bg-gradient-to-r from-brand-50 to-white p-5 dark:border-brand-400/20 dark:from-brand-900/20 dark:to-slate-900 sm:flex-row sm:items-center">
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-brand dark:text-brand-300">Days Sales Outstanding (DSO)</p>
               <p className="mt-1 text-3xl font-bold text-brand dark:text-white">{stats.dso.toFixed(0)} days</p>
@@ -233,8 +378,116 @@ export default function DashboardPage() {
             <ScreenIcon name="cashflow" className="hidden h-16 w-16 flex-none text-brand/20 dark:text-brand-300/20 sm:block" />
           </div>
 
-          <div className="mb-6 grid gap-6 lg:grid-cols-2">
-            <div className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+          {/* The four trend charts — two rows of two */}
+          <div className="grid gap-10 border-t border-slate-200 pt-8 dark:border-slate-800 lg:grid-cols-2">
+            <section>
+              <h3 className="mb-1 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                Sales vs Collections — last 6 months
+              </h3>
+              <p className="mb-4 text-xs text-slate-400 dark:text-slate-500">
+                Billed = invoices raised that month · Collected = money received. A widening gap means debtors are building up.
+              </p>
+              <LineChart
+                labels={stats.monthLabels}
+                series={[
+                  { name: "Billed", values: stats.billedByMonth, color: CHART_COLORS.blue },
+                  { name: "Collected", values: stats.collectedByMonth, color: CHART_COLORS.green },
+                ]}
+              />
+            </section>
+
+            <section>
+              <h3 className="mb-1 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                Customer Sales Trend — top 4
+              </h3>
+              <p className="mb-4 text-xs text-slate-400 dark:text-slate-500">
+                Monthly billing per key customer — spot who&apos;s growing and who&apos;s going quiet.
+              </p>
+              <LineChart
+                labels={stats.monthLabels}
+                series={stats.salesTrendByCustomer.map((s, i) => ({
+                  ...s,
+                  color: [CHART_COLORS.blue, CHART_COLORS.orange, CHART_COLORS.green, CHART_COLORS.purple][i],
+                }))}
+              />
+            </section>
+
+            <section>
+              <h3 className="mb-1 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                Total Debtors — month-end trend
+              </h3>
+              <p className="mb-4 text-xs text-slate-400 dark:text-slate-500">
+                The receivables book at each month end. A rising line means credit is piling up faster than it&apos;s collected.
+              </p>
+              <LineChart
+                labels={stats.monthLabels}
+                series={[{ name: "Debtors", values: stats.debtorsMonthEnd, color: CHART_COLORS.purple }]}
+              />
+            </section>
+
+            <section>
+              <h3 className="mb-1 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                Cashflow Outlook — expected collections
+              </h3>
+              <p className="mb-4 text-xs text-slate-400 dark:text-slate-500">
+                Open invoices by due week for the next 7 weeks (overdue shown first — chase these for immediate cash).
+              </p>
+              <LineChart
+                labels={stats.weekLabels}
+                series={[
+                  { name: "Due that week", values: stats.weekExpected, color: CHART_COLORS.orange },
+                  { name: "Cumulative", values: stats.weekCumulative, color: CHART_COLORS.blue, dashed: true },
+                ]}
+              />
+            </section>
+          </div>
+
+          {/* Sales by customer + overdue by customer */}
+          <div className="mt-8 grid gap-10 border-t border-slate-200 pt-8 dark:border-slate-800 lg:grid-cols-2">
+            <section>
+              <h3 className="mb-1 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                Sales by Customer — top 8
+              </h3>
+              <p className="mb-4 text-xs text-slate-400 dark:text-slate-500">All-time billing. Your revenue concentration at a glance.</p>
+              <div className="space-y-3">
+                {stats.salesByCustomer.map((c, i) => {
+                  const maxAmt = stats.salesByCustomer[0]?.amount || 1;
+                  return (
+                    <div key={c.id}>
+                      <div className="mb-1 flex items-center justify-between gap-2 text-xs">
+                        <span className="flex items-center gap-2 font-medium text-slate-700 dark:text-slate-200">
+                          <span className="w-4 flex-none text-right text-[10px] text-slate-400 dark:text-slate-500">{i + 1}.</span>
+                          {c.name}
+                        </span>
+                        <span className="flex-none font-semibold tabular-nums text-slate-600 dark:text-slate-300">{inr.format(c.amount)}</span>
+                      </div>
+                      <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+                        <div className="h-full rounded-full bg-brand dark:bg-brand-400" style={{ width: `${Math.max((c.amount / maxAmt) * 100, 2)}%` }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+
+            <section>
+              <h3 className="mb-1 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                Overdue by Customer
+              </h3>
+              <p className="mb-4 text-xs text-slate-400 dark:text-slate-500">
+                Who owes overdue money and how stale it is — your chase list, worst first.
+              </p>
+              {stats.overdueByCustomer.length === 0 ? (
+                <p className="text-sm text-slate-400 dark:text-slate-500">Nothing overdue — the book is clean. 🎉</p>
+              ) : (
+                <DataTable columns={overdueColumns} rows={stats.overdueByCustomer} searchable={false} empty="Nothing overdue." />
+              )}
+            </section>
+          </div>
+
+          {/* Status breakdown + top debtors */}
+          <div className="mt-8 grid gap-10 border-t border-slate-200 pt-8 dark:border-slate-800 lg:grid-cols-2">
+            <section>
               <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                 Invoice Status Breakdown
               </h3>
@@ -260,9 +513,9 @@ export default function DashboardPage() {
                   );
                 })}
               </div>
-            </div>
+            </section>
 
-            <div className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+            <section>
               <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Top 5 Debtors</h3>
               {stats.topDebtors.length === 0 ? (
                 <p className="text-sm text-slate-400 dark:text-slate-500">No outstanding balances — everyone&apos;s paid up.</p>
@@ -294,10 +547,11 @@ export default function DashboardPage() {
                   })}
                 </div>
               )}
-            </div>
+            </section>
           </div>
 
-          <div>
+          {/* Recent invoices */}
+          <div className="mt-8 border-t border-slate-200 pt-8 dark:border-slate-800">
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
               <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Recent Invoices</h3>
               <select
@@ -329,21 +583,23 @@ function KpiTile({
   icon: string;
   label: string;
   value: string | number;
-  tone?: "default" | "brand" | "warn";
+  tone?: "default" | "brand" | "warn" | "good";
 }) {
   const iconWrap =
     tone === "warn"
       ? "bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-300"
+      : tone === "good"
+      ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-300"
       : "bg-brand-50 text-brand dark:bg-brand-900/30 dark:text-brand-300";
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-5 transition-shadow hover:shadow-md dark:border-slate-800 dark:bg-slate-900">
+    <div className="lg:px-4 lg:first:pl-0">
       <div className="flex items-center gap-3">
-        <div className={`flex h-11 w-11 flex-none items-center justify-center rounded-lg ${iconWrap}`}>
+        <div className={`hidden h-10 w-10 flex-none items-center justify-center rounded-lg xl:flex ${iconWrap}`}>
           <ScreenIcon name={icon} className="h-5 w-5" />
         </div>
         <div>
-          <p className="text-2xl font-bold text-slate-900 dark:text-white">{value}</p>
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">{label}</p>
+          <p className="text-xl font-bold text-slate-900 dark:text-white">{value}</p>
+          <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">{label}</p>
         </div>
       </div>
     </div>
@@ -353,17 +609,18 @@ function KpiTile({
 function DashboardSkeleton() {
   return (
     <div className="animate-pulse">
-      <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {[0, 1, 2, 3].map((i) => (
-          <div key={i} className="h-[84px] rounded-xl border border-slate-200 bg-slate-100 dark:border-slate-800 dark:bg-slate-800/60" />
+      <div className="mb-6 grid gap-4 sm:grid-cols-3 lg:grid-cols-6">
+        {[0, 1, 2, 3, 4, 5].map((i) => (
+          <div key={i} className="h-[64px] rounded-xl bg-slate-100 dark:bg-slate-800/60" />
         ))}
       </div>
-      <div className="mb-6 h-24 rounded-xl border border-slate-200 bg-slate-100 dark:border-slate-800 dark:bg-slate-800/60" />
+      <div className="mb-6 h-24 rounded-xl bg-slate-100 dark:bg-slate-800/60" />
+      <div className="mb-6 h-64 rounded-xl bg-slate-100 dark:bg-slate-800/60" />
       <div className="mb-6 grid gap-6 lg:grid-cols-2">
-        <div className="h-56 rounded-xl border border-slate-200 bg-slate-100 dark:border-slate-800 dark:bg-slate-800/60" />
-        <div className="h-56 rounded-xl border border-slate-200 bg-slate-100 dark:border-slate-800 dark:bg-slate-800/60" />
+        <div className="h-56 rounded-xl bg-slate-100 dark:bg-slate-800/60" />
+        <div className="h-56 rounded-xl bg-slate-100 dark:bg-slate-800/60" />
       </div>
-      <div className="h-64 rounded-xl border border-slate-200 bg-slate-100 dark:border-slate-800 dark:bg-slate-800/60" />
+      <div className="h-64 rounded-xl bg-slate-100 dark:bg-slate-800/60" />
     </div>
   );
 }

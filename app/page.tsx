@@ -79,8 +79,8 @@ export default function HomePage() {
       )}
 
       {/* Progress + next-up */}
-      <div className="grid animate-fade-in-up gap-4 md:grid-cols-3" style={{ animationDelay: "60ms" }}>
-        <div className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900 md:col-span-2">
+      <div className="grid animate-fade-in-up gap-6 border-b border-slate-200 pb-8 dark:border-slate-800 md:grid-cols-3" style={{ animationDelay: "60ms" }}>
+        <div className="md:col-span-2">
           <div className="flex items-end justify-between">
             <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
               Build progress
@@ -105,7 +105,7 @@ export default function HomePage() {
         </div>
 
         {nextScreen && (
-          <div className="group flex flex-col justify-between rounded-xl border border-brand/30 bg-brand-50 p-5 dark:border-brand-400/30 dark:bg-brand-900/20">
+          <div className="group flex flex-col justify-between border-l-2 border-brand pl-4 dark:border-brand-400">
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-brand dark:text-brand-300">Next up</p>
               <div className="mt-2 flex items-center gap-2">
@@ -121,7 +121,7 @@ export default function HomePage() {
       </div>
 
       {/* How this works */}
-      <div className="mt-6 animate-fade-in-up rounded-xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-slate-900" style={{ animationDelay: "120ms" }}>
+      <div className="mt-8 animate-fade-in-up" style={{ animationDelay: "120ms" }}>
         <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
           How this works
         </h3>
@@ -149,7 +149,7 @@ export default function HomePage() {
           {ROADMAP.map((r, i) => (
             <div
               key={r.title}
-              className="group animate-fade-in-up rounded-xl border border-slate-200 bg-white p-4 transition-all duration-200 hover:-translate-y-1 hover:border-brand hover:shadow-lg dark:border-slate-800 dark:bg-slate-900 dark:hover:border-brand-400"
+              className="group animate-fade-in-up rounded-lg p-4 transition-colors duration-200 hover:bg-slate-50 dark:hover:bg-slate-800/40"
               style={{ animationDelay: `${150 + i * 35}ms` }}
             >
               <div className="flex items-start justify-between gap-2">

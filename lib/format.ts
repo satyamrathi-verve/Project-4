@@ -78,3 +78,12 @@ export function toISODate(d: Date): string {
 export function formatShortDate(iso: string): string {
   return parseISODate(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
 }
+
+/** Compact Indian-system money for chart axes: ₹1.2Cr, ₹4.5L, ₹80k. */
+export function inrCompact(n: number): string {
+  const a = Math.abs(n);
+  if (a >= 1e7) return `₹${(n / 1e7).toFixed(1).replace(/\.0$/, "")}Cr`;
+  if (a >= 1e5) return `₹${(n / 1e5).toFixed(1).replace(/\.0$/, "")}L`;
+  if (a >= 1e3) return `₹${Math.round(n / 1e3)}k`;
+  return `₹${Math.round(n)}`;
+}

@@ -13,7 +13,6 @@ import {
   customerFormSchema,
 } from "@/lib/validation/customer";
 import { FormField, inputClass } from "@/components/FormField";
-import { CollapsibleSection } from "@/components/CollapsibleSection";
 
 /*
   Shared create/edit form for Customer Master. Basic Details covers what
@@ -219,8 +218,12 @@ export function CustomerForm({ mode, initial }: { mode: "create" | "edit"; initi
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-6">
-      <CollapsibleSection title="Basic Details" subtitle="Identity, address, contact and credit terms." defaultOpen>
+    <form onSubmit={handleSubmit} className="flex flex-col gap-8">
+      <section>
+        <div className="mb-4">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Basic Details</h3>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Identity, address, contact and credit terms.</p>
+        </div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <FormField label="Customer Code">
             <input className={inputClass} value={values.code} onChange={(e) => set("code", e.target.value)} />
@@ -349,13 +352,13 @@ export function CustomerForm({ mode, initial }: { mode: "create" | "edit"; initi
             {errors.credit_limit && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{errors.credit_limit}</p>}
           </FormField>
         </div>
-      </CollapsibleSection>
+      </section>
 
-      <CollapsibleSection
-        title="Advanced Details"
-        subtitle="GST compliance, TDS/TCS, MSME, banking and export information."
-        defaultOpen={false}
-      >
+      <section className="border-t border-slate-200 pt-6 dark:border-slate-800">
+        <div className="mb-4">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Advanced Details</h3>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">GST compliance, TDS/TCS, MSME, banking and export information.</p>
+        </div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <FormField label="Place of Supply">
             <input className={inputClass} value={values.place_of_supply} onChange={(e) => set("place_of_supply", e.target.value)} />
@@ -420,7 +423,7 @@ export function CustomerForm({ mode, initial }: { mode: "create" | "edit"; initi
             </FormField>
           </div>
         </div>
-      </CollapsibleSection>
+      </section>
 
       {submitError && (
         <div className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700 dark:bg-red-950/40 dark:text-red-300">

@@ -14,6 +14,7 @@ import { formatCurrency, formatDate, todayISO } from "@/lib/format";
 import { buildAllocationMap, paidAmount, balanceDue, displayStatus } from "@/lib/invoice";
 import { downloadCsv } from "@/lib/csv";
 import { ExportButton } from "@/components/ExportButton";
+import { IconButton, IconLink, ActionIcons } from "@/components/IconButton";
 
 interface InvoiceRow {
   id: string;
@@ -174,25 +175,27 @@ export default function InvoiceListPage() {
       key: "actions",
       header: "Actions",
       className: "whitespace-nowrap",
+      sortable: false,
       render: (r) => (
-        <div className="flex items-center gap-3 text-sm">
-          <Link href={`/invoices/${r.id}`} className="font-medium text-brand hover:underline dark:text-brand-300">
-            View
-          </Link>
-          <Link href={`/invoices/${r.id}/edit`} className="font-medium text-brand hover:underline dark:text-brand-300">
-            Edit
-          </Link>
-          <Link href={`/invoices/${r.id}?print=1`} className="font-medium text-brand hover:underline dark:text-brand-300">
-            Print
-          </Link>
-          <button
-            type="button"
+        <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+          <IconLink label="View" href={`/invoices/${r.id}`} shape="ghost">
+            {ActionIcons.view}
+          </IconLink>
+          <IconLink label="Edit" href={`/invoices/${r.id}/edit`} shape="ghost">
+            {ActionIcons.edit}
+          </IconLink>
+          <IconLink label="Print" href={`/invoices/${r.id}?print=1`} shape="ghost">
+            {ActionIcons.print}
+          </IconLink>
+          <IconButton
+            label={deletingId === r.id ? "Deleting…" : "Delete"}
+            shape="ghost"
+            variant="danger"
             disabled={deletingId === r.id}
             onClick={() => handleDelete(r)}
-            className="font-medium text-red-600 hover:underline disabled:opacity-50 disabled:no-underline dark:text-red-400"
           >
-            {deletingId === r.id ? "Deleting…" : "Delete"}
-          </button>
+            {deletingId === r.id ? ActionIcons.spinner : ActionIcons.delete}
+          </IconButton>
         </div>
       ),
     },
@@ -245,7 +248,7 @@ export default function InvoiceListPage() {
             </div>
           )}
 
-          <div className="mb-4 grid gap-3 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <FormField label="Search">
               <input
                 className={inputClass}

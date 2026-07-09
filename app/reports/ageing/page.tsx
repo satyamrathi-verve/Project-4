@@ -937,7 +937,7 @@ export default function AgeingReportPage() {
       {isConfigured && !error && loaded && (
         <>
           {/* KPI strip */}
-          <div className="mb-4 flex flex-wrap items-center gap-x-6 gap-y-3 rounded-xl border border-slate-200 bg-white px-5 py-3 dark:border-slate-800 dark:bg-slate-900 print:hidden">
+          <div className="mb-4 flex flex-wrap items-center gap-x-6 gap-y-3 py-2 print:hidden">
             <Stat label="Total Outstanding" value={formatCurrency(grandTotal.total)} valueClassName="text-brand dark:text-brand-300" />
             <StatDivider />
             <Stat label="Overdue" value={formatCurrency(grandTotal.total - grandTotal.notDue)} valueClassName="text-red-600 dark:text-red-400" />
@@ -960,7 +960,7 @@ export default function AgeingReportPage() {
           </div>
 
           {/* Filters & columns — collapsed by default to keep the page uncluttered */}
-          <div className="mb-4 rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 print:hidden">
+          <div className="mb-4 border-t border-slate-200 pt-4 dark:border-slate-800 print:hidden">
             <button
               type="button"
               onClick={() => setShowFiltersPanel((o) => !o)}
@@ -1122,10 +1122,10 @@ export default function AgeingReportPage() {
             Showing {sortedRows.length} of {summaryRows.length} customer{summaryRows.length === 1 ? "" : "s"} with an outstanding balance.
           </p>
 
-          <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+          <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-slate-200 bg-slate-50 text-left dark:border-slate-800 dark:bg-slate-800/50">
+                <tr className="border-b border-slate-300 text-left dark:border-slate-700">
                   <th className="cursor-pointer select-none px-4 py-3 font-semibold text-slate-600 dark:text-slate-300" onClick={() => toggleSort("name")}>
                     Customer{sortArrow("name")}
                   </th>
@@ -1180,7 +1180,7 @@ export default function AgeingReportPage() {
                 ) : (
                   <>
                     {sortedRows.map((r) => (
-                      <tr key={r.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800/50">
+                      <tr key={r.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50 dark:border-slate-800/70 dark:hover:bg-slate-800/50">
                         <td className="px-4 py-3 font-medium text-slate-700 dark:text-slate-300">
                           <Link href={`/invoices?customer=${r.id}`} className="text-brand hover:underline dark:text-brand-300 print:text-slate-700 print:no-underline">
                             {r.name}
@@ -1223,7 +1223,7 @@ export default function AgeingReportPage() {
                         </td>
                       </tr>
                     ))}
-                    <tr className="bg-slate-50 font-semibold dark:bg-slate-800/50">
+                    <tr className="border-t border-slate-300 font-semibold dark:border-slate-700">
                       <td className="px-4 py-3 text-slate-800 dark:text-slate-100">Grand Total</td>
                       {showLocationCol && <td className="px-4 py-3" />}
                       {showCreditLimitCol && <td className="px-4 py-3" />}

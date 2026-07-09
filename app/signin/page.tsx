@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useState, type FormEvent, type KeyboardEvent } from "react";
 import { useRouter } from "next/navigation";
 import { checkLogin, signIn } from "@/lib/auth";
 import { FormField, inputClass } from "@/components/FormField";
@@ -44,12 +44,27 @@ function TeamAvatar({ member }: { member: (typeof TEAM)[number] }) {
   );
 }
 
+/* The authentic Microsoft four-square logo. */
+function MicrosoftLogo() {
+  return (
+    <svg className="h-4 w-4 flex-none" viewBox="0 0 21 21" aria-hidden="true">
+      <rect x="0" y="0" width="10" height="10" fill="#f25022" />
+      <rect x="11" y="0" width="10" height="10" fill="#7fba00" />
+      <rect x="0" y="11" width="10" height="10" fill="#00a4ef" />
+      <rect x="11" y="11" width="10" height="10" fill="#ffb900" />
+    </svg>
+  );
+}
+
 export default function SignInPage() {
   const router = useRouter();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState(false);
   const [checking, setChecking] = useState(false);
+  const [showPw, setShowPw] = useState(false);
+  const [capsOn, setCapsOn] = useState(false);
+  const [msNote, setMsNote] = useState(false);
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -73,6 +88,16 @@ export default function SignInPage() {
     }, 300);
   }
 
+  function watchCaps(e: KeyboardEvent<HTMLInputElement>) {
+    setCapsOn(e.getModifierState && e.getModifierState("CapsLock"));
+  }
+
+  function fillDemo() {
+    setUsername("admin");
+    setPassword("admin123");
+    setError(false);
+  }
+
   return (
     <div className="flex min-h-screen">
       {/* Brand panel — hidden on small screens, the story half of the split-screen */}
@@ -80,7 +105,7 @@ export default function SignInPage() {
         <div className="pointer-events-none absolute -top-24 -right-24 h-72 w-72 rounded-full bg-white/10 blur-3xl" />
         <div className="pointer-events-none absolute -bottom-24 -left-16 h-72 w-72 rounded-full bg-accent/20 blur-3xl" />
 
-        <img src="/verve-logo-white.png" alt="Verve Advisory" className="relative h-8 w-auto self-start" />
+        <img src="/verve-logo-white.png" alt="Verve Advisory" className="relative h-10 w-auto self-start object-contain" />
 
         <div className="relative animate-fade-in-up">
           <h1 className="text-3xl font-bold leading-tight">Take control of your receivables.</h1>
@@ -93,7 +118,7 @@ export default function SignInPage() {
             {HIGHLIGHTS.map((h, i) => (
               <div
                 key={h.text}
-                className="flex animate-fade-in-up items-center gap-3 rounded-lg bg-white/10 px-4 py-3 backdrop-blur-sm"
+                className="flex animate-fade-in-up items-center gap-3 rounded-lg bg-white/10 px-4 py-3 backdrop-blur-sm transition-transform duration-200 hover:translate-x-1 hover:bg-white/15"
                 style={{ animationDelay: `${120 + i * 90}ms` }}
               >
                 <ScreenIcon name={h.icon} className="h-5 w-5 flex-none text-white" />
@@ -121,13 +146,40 @@ export default function SignInPage() {
 
         <form
           onSubmit={handleSubmit}
-          className="relative w-full max-w-sm animate-fade-in-up rounded-2xl border border-slate-200 bg-white/90 p-8 shadow-xl shadow-brand-900/10 backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/90 lg:border-none lg:bg-transparent lg:p-0 lg:shadow-none lg:backdrop-blur-none dark:lg:bg-transparent"
+          className="relative w-full max-w-sm animate-fade-in-up"
         >
           <div className="flex flex-col items-center text-center lg:items-start lg:text-left">
-            <img src="/verve-logo-blue.png" alt="Verve Advisory" className="h-8 w-auto dark:hidden lg:hidden" />
-            <img src="/verve-logo-white.png" alt="Verve Advisory" className="hidden h-8 w-auto dark:block lg:hidden" />
-            <h1 className="mt-4 text-xl font-bold text-slate-900 dark:text-slate-100 lg:mt-0">Welcome back</h1>
-            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Sign in to pick up right where the team left off.</p>
+            <img src="/verve-logo-blue.png" alt="Verve Advisory" className="h-9 w-auto object-contain dark:hidden lg:hidden" />
+            <img src="/verve-logo-white.png" alt="Verve Advisory" className="hidden h-9 w-auto object-contain dark:block lg:hidden" />
+            <h1 className="mt-4 text-2xl font-bold text-slate-900 dark:text-slate-100 lg:mt-0">Welcome back</h1>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Sign in to your Verve AR Manager account.</p>
+          </div>
+
+          {/* Microsoft SSO — visual only for the demo; nudges to the demo login */}
+          <button
+            type="button"
+            onClick={() => setMsNote(true)}
+            className="mt-7 flex w-full items-center justify-center gap-2.5 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition-all duration-200 hover:border-slate-400 hover:shadow active:scale-[0.98] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-slate-500"
+          >
+            <MicrosoftLogo />
+            Continue with Microsoft
+            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:bg-slate-800 dark:text-slate-500">
+              soon
+            </span>
+          </button>
+
+          {msNote && (
+            <p className="mt-3 animate-fade-in-up rounded-lg bg-brand-50 px-3 py-2 text-xs text-brand-800 dark:bg-brand-900/40 dark:text-brand-200">
+              Microsoft sign-in arrives after the event — use the demo login below 👇
+            </p>
+          )}
+
+          <div className="mt-6 flex items-center gap-3">
+            <span className="h-px flex-1 bg-slate-200 dark:bg-slate-800" />
+            <span className="text-xs font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">
+              or sign in with username
+            </span>
+            <span className="h-px flex-1 bg-slate-200 dark:bg-slate-800" />
           </div>
 
           <div className="mt-6 flex flex-col gap-4">
@@ -142,21 +194,50 @@ export default function SignInPage() {
               />
             </FormField>
             <FormField label="Password">
-              <input
-                type="password"
-                className={inputClass}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                autoComplete="current-password"
-                aria-label="Password"
-              />
+              <div className="relative">
+                <input
+                  type={showPw ? "text" : "password"}
+                  className={`${inputClass} w-full pr-10`}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  onKeyDown={watchCaps}
+                  onKeyUp={watchCaps}
+                  autoComplete="current-password"
+                  aria-label="Password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPw((s) => !s)}
+                  aria-label={showPw ? "Hide password" : "Show password"}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 transition-colors hover:text-brand dark:hover:text-brand-300"
+                >
+                  {showPw ? (
+                    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" />
+                      <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" />
+                      <path d="M14.12 14.12a3 3 0 1 1-4.24-4.24" />
+                      <line x1="1" y1="1" x2="23" y2="23" />
+                    </svg>
+                  ) : (
+                    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                      <circle cx="12" cy="12" r="3" />
+                    </svg>
+                  )}
+                </button>
+              </div>
             </FormField>
+            {capsOn && (
+              <p className="animate-fade-in -mt-2 text-xs font-medium text-amber-600 dark:text-amber-400">
+                ⇪ Caps Lock is on
+              </p>
+            )}
           </div>
 
           {error && (
             <p
               role="alert"
-              className="mt-4 animate-fade-in-up rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950 dark:text-red-300"
+              className="mt-4 animate-shake rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950 dark:text-red-300"
             >
               That username or password isn&apos;t right. Try again.
             </p>
@@ -170,9 +251,13 @@ export default function SignInPage() {
             {checking ? "Checking…" : "Sign In →"}
           </button>
 
-          <p className="mt-4 text-center text-xs text-slate-400 dark:text-slate-500 lg:text-left">
-            Demo: <span className="font-medium text-slate-500 dark:text-slate-400">admin / admin123</span>
-          </p>
+          <button
+            type="button"
+            onClick={fillDemo}
+            className="mx-auto mt-4 block text-center text-xs text-slate-400 transition-colors hover:text-brand dark:text-slate-500 dark:hover:text-brand-300 lg:mx-0 lg:text-left"
+          >
+            Demo: <span className="font-medium">admin / admin123</span> — click to fill
+          </button>
         </form>
       </div>
     </div>

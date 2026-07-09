@@ -92,7 +92,7 @@ export function Attachments({ invoiceId }: { invoiceId: string }) {
   }
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-slate-900">
+    <div className="border-t border-slate-200 pt-6 dark:border-slate-800">
       <div className="mb-3 flex items-center justify-between gap-4">
         <div>
           <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Attachments</h3>

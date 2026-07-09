@@ -480,7 +480,7 @@ export default function CashflowPage() {
       )}
 
       {!loading && rows.length > 0 && (
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 dark:border-slate-800 dark:bg-slate-900">
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">Prediction basis</p>
             <p className="mt-0.5 max-w-xl text-xs text-slate-500 dark:text-slate-400">
@@ -513,7 +513,7 @@ export default function CashflowPage() {
       )}
 
       {!loading && rows.length > 0 && (
-        <div className="mb-6 grid gap-3 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <FormField label="Customer">
             <select className={inputClass} value={customerFilter} onChange={(e) => setCustomerFilter(e.target.value)}>
               <option value="all">All customers</option>
@@ -528,27 +528,27 @@ export default function CashflowPage() {
         </div>
       )}
 
-      <div className="mb-6 grid gap-4 sm:grid-cols-3">
+      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3 sm:gap-0 sm:divide-x sm:divide-slate-200 dark:divide-slate-800">
         <SummaryTile label="Total Outstanding" value={inr.format(totalOutstanding)} />
         <SummaryTile label="Expected in next 30 days" value={inr.format(totalNext30)} />
         <SummaryTile label="Expected beyond 90 days" value={inr.format(totalBeyond90)} />
       </div>
 
       {loading ? (
-        <div className="rounded-xl border border-slate-200 bg-white p-10 text-center text-slate-400 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-500">
+        <div className="p-10 text-center text-slate-400 dark:text-slate-500">
           Loading projection…
         </div>
       ) : rows.length === 0 ? (
-        <div className="rounded-xl border border-slate-200 bg-white p-10 text-center text-slate-400 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-500">
+        <div className="p-10 text-center text-slate-400 dark:text-slate-500">
           No open, partial, or overdue invoices to project.
         </div>
       ) : filteredRows.length === 0 ? (
-        <div className="rounded-xl border border-slate-200 bg-white p-10 text-center text-slate-400 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-500">
+        <div className="p-10 text-center text-slate-400 dark:text-slate-500">
           No invoices match these filters.
         </div>
       ) : (
         <>
-          <div className="mb-6">
+          <div className="mb-6 border-t border-slate-200 pt-6 dark:border-slate-800">
             <BarChart data={chartData} />
           </div>
 
@@ -570,7 +570,7 @@ export default function CashflowPage() {
 
 function SummaryTile({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+    <div className="sm:px-6 sm:first:pl-0">
       <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{label}</p>
       <p className="mt-1 text-2xl font-bold text-brand dark:text-white">{value}</p>
     </div>

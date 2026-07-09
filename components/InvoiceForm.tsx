@@ -383,7 +383,7 @@ export function InvoiceForm({ invoiceId }: { invoiceId?: string }) {
       )}
 
       <form onSubmit={handleSave} className="space-y-6">
-        <div className="rounded-xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-slate-900">
+        <div className="border-t border-slate-200 pt-6 dark:border-slate-800">
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="sm:col-span-2">
               <FormField label="Customer">
@@ -510,7 +510,7 @@ export function InvoiceForm({ invoiceId }: { invoiceId?: string }) {
           )}
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-slate-900">
+        <div className="border-t border-slate-200 pt-6 dark:border-slate-800">
           <div className="mb-3 flex items-center justify-between">
             <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Invoice Items</h3>
             <button
@@ -582,7 +582,7 @@ export function InvoiceForm({ invoiceId }: { invoiceId?: string }) {
           </div>
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-slate-900">
+        <div className="border-t border-slate-200 pt-6 dark:border-slate-800">
           <div className="mb-3 flex items-center justify-between">
             <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Tax Breakdown</h3>
             <button
@@ -717,7 +717,7 @@ export function InvoiceForm({ invoiceId }: { invoiceId?: string }) {
         <Attachments invoiceId={attachmentsKey} />
       </div>
 
-      <div className="mt-6 rounded-xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-slate-900">
+      <div className="mt-6 border-t border-slate-200 pt-6 dark:border-slate-800">
         <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Terms &amp; Conditions</h3>
         <p className="mb-2 text-xs text-slate-400 dark:text-slate-500">
           Standard terms shown on every invoice — for reference here, not editable per-invoice.
