@@ -3,12 +3,12 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { supabase, isConfigured } from "@/lib/supabase";
-import type { Customer, Invoice, Receipt } from "@/lib/types";
+import type { Customer, Invoice, Receipt, ReceiptAllocation } from "@/lib/types";
 import { PageHeader } from "@/components/PageHeader";
 import { IconButton, ActionIcons } from "@/components/IconButton";
 import { NotConfigured } from "@/components/NotConfigured";
 import { FormField, inputClass } from "@/components/FormField";
-import { formatCurrency, formatDate, todayISO } from "@/lib/format";
+import { formatCurrency, formatDate, todayISO, parseISODate, todayMidnight, daysBetween } from "@/lib/format";
 
 /*
   Customer Statement (ledger): every invoice (a debit, at its full total) and
@@ -51,18 +51,20 @@ export default function CustomerStatementPage() {
   const [customers, setCustomers] = useState<Customer[] | null>(null);
   const [invoices, setInvoices] = useState<Invoice[] | null>(null);
   const [receipts, setReceipts] = useState<Receipt[] | null>(null);
+  const [allocations, setAllocations] = useState<ReceiptAllocation[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
 
   useEffect(() => {
     if (!supabase) return;
     (async () => {
-      const [cust, inv, rcpt] = await Promise.all([
+      const [cust, inv, rcpt, alloc] = await Promise.all([
         supabase.from("customers").select("*"),
         supabase.from("invoices").select("*"),
         supabase.from("receipts").select("*"),
+        supabase.from("receipt_allocations").select("*"),
       ]);
-      const firstError = cust.error || inv.error || rcpt.error;
+      const firstError = cust.error || inv.error || rcpt.error || alloc.error;
       if (firstError) {
         setError(firstError.message);
         return;
@@ -70,10 +72,11 @@ export default function CustomerStatementPage() {
       setCustomers(cust.data as Customer[]);
       setInvoices(inv.data as Invoice[]);
       setReceipts(rcpt.data as Receipt[]);
+      setAllocations(alloc.data as ReceiptAllocation[]);
     })();
   }, []);
 
-  const loaded = customers && invoices && receipts;
+  const loaded = customers && invoices && receipts && allocations;
 
   const sortedCustomers = useMemo(() => {
     return [...(customers ?? [])].sort((a, b) => a.name.localeCompare(b.name));
@@ -132,6 +135,34 @@ export default function CustomerStatementPage() {
   const openingBalance = selectedCustomer?.opening_balance ?? 0;
   const closingBalance = rows.length > 0 ? rows[rows.length - 1].balance : openingBalance;
   const asOfLabel = formatDate(todayISO());
+
+  // Most recent receipt date for this customer, for the Payment Summary — "-" if none.
+  const lastPaymentDate = useMemo(() => {
+    if (!selectedCustomer || !receipts) return null;
+    const dates = receipts.filter((r) => r.customer_id === selectedCustomer.id).map((r) => r.receipt_date);
+    return dates.length > 0 ? dates.reduce((latest, d) => (d > latest ? d : latest)) : null;
+  }, [selectedCustomer, receipts]);
+
+  // Outstanding Aging Summary — per-invoice outstanding (total minus its receipt_allocations,
+  // the same rule the AR Ageing report uses), bucketed by days since the invoice date.
+  const aging = useMemo(() => {
+    const buckets = { current: 0, d31_60: 0, d61_90: 0, d90plus: 0 };
+    if (!selectedCustomer || !invoices || !allocations) return buckets;
+    const allocByInvoice = new Map<string, number>();
+    for (const a of allocations) allocByInvoice.set(a.invoice_id, (allocByInvoice.get(a.invoice_id) ?? 0) + a.amount);
+    const today = todayMidnight();
+    for (const inv of invoices) {
+      if (inv.customer_id !== selectedCustomer.id) continue;
+      const outstanding = inv.total - (allocByInvoice.get(inv.id) ?? 0);
+      if (outstanding <= 0.005) continue;
+      const age = daysBetween(parseISODate(inv.invoice_date), today);
+      if (age <= 30) buckets.current += outstanding;
+      else if (age <= 60) buckets.d31_60 += outstanding;
+      else if (age <= 90) buckets.d61_90 += outstanding;
+      else buckets.d90plus += outstanding;
+    }
+    return buckets;
+  }, [selectedCustomer, invoices, allocations]);
 
   return (
     <div className="mx-auto max-w-5xl">
@@ -203,6 +234,23 @@ export default function CustomerStatementPage() {
                 <Stat label="Closing Balance" value={formatCurrency(closingBalance)} valueClassName="text-brand dark:text-brand-300" />
               </div>
 
+              <div className="mb-6 border-t border-slate-200 pt-6 dark:border-slate-800">
+                <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Payment Summary</h3>
+                <div className="flex flex-wrap items-center gap-x-6 gap-y-4">
+                  <Stat label="Total Invoices" value={formatCurrency(totalDebit)} valueClassName="text-slate-800 dark:text-slate-100" />
+                  <StatDivider />
+                  <Stat label="Total Receipts" value={formatCurrency(totalCredit)} valueClassName="text-slate-800 dark:text-slate-100" />
+                  <StatDivider />
+                  <Stat label="Outstanding Balance" value={formatCurrency(closingBalance)} valueClassName="text-brand dark:text-brand-300" />
+                  <StatDivider />
+                  <Stat
+                    label="Last Payment Date"
+                    value={lastPaymentDate ? formatDate(lastPaymentDate) : "-"}
+                    valueClassName="text-slate-800 dark:text-slate-100"
+                  />
+                </div>
+              </div>
+
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
@@ -271,6 +319,21 @@ export default function CustomerStatementPage() {
                     </tr>
                   </tbody>
                 </table>
+              </div>
+
+              <div className="mt-8 border-t border-slate-200 pt-6 dark:border-slate-800">
+                <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                  Outstanding Aging Summary
+                </h3>
+                <div className="flex flex-wrap items-center gap-x-6 gap-y-4">
+                  <Stat label="Current (0–30 days)" value={formatCurrency(aging.current)} valueClassName="text-slate-800 dark:text-slate-100" />
+                  <StatDivider />
+                  <Stat label="31–60 days" value={formatCurrency(aging.d31_60)} valueClassName="text-amber-600 dark:text-amber-400" />
+                  <StatDivider />
+                  <Stat label="61–90 days" value={formatCurrency(aging.d61_90)} valueClassName="text-orange-600 dark:text-orange-400" />
+                  <StatDivider />
+                  <Stat label="90+ days" value={formatCurrency(aging.d90plus)} valueClassName="text-red-600 dark:text-red-400" />
+                </div>
               </div>
             </>
           )}
