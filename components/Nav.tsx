@@ -16,7 +16,7 @@ const LINKS: { href: string; label: string; built: boolean; icon: string }[] = [
   { href: "/masters/customers", label: "Customer Master", built: true, icon: "customers" },
   { href: "/masters/gl", label: "GL Master", built: true, icon: "gl" },
   { href: "/invoices", label: "Sales Invoices", built: true, icon: "invoices" },
-  { href: "/receipts", label: "Receipt Entry", built: false, icon: "receipts" },
+  { href: "/receipts", label: "Receipt Entry", built: true, icon: "receipts" },
   { href: "/upload", label: "Upload Report", built: true, icon: "upload" },
   { href: "/reminders", label: "AR Followup", built: true, icon: "reminders" },
   { href: "/reports/statement", label: "Customer Statement", built: true, icon: "statement" },
@@ -29,7 +29,7 @@ export function Nav() {
   const pathname = usePathname();
 
   return (
-    <nav className="flex h-full w-60 flex-col gap-1 border-r border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+    <nav className="flex h-full w-60 flex-col gap-1 border-r border-slate-200 bg-white p-4 print:hidden dark:border-slate-800 dark:bg-slate-900">
       <div className="mb-6 px-1">
         {/* Verve Advisory logo — blue in light mode, white in dark mode */}
         <img src="/verve-logo-blue.png" alt="Verve Advisory" className="h-16 w-auto dark:hidden" />
