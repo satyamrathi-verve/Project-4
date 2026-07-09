@@ -15,16 +15,22 @@ export function AuthGate({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);
   const [signedIn, setSignedIn] = useState(false);
 
+  // Sign-in is public chrome-free; the customer portal has its own Supabase
+  // Auth check and its own minimal header — neither should be gated by (or
+  // redirected because of) the internal, localStorage-only session below.
+  const isBypassRoute = pathname === "/signin" || pathname.startsWith("/portal");
+
   useEffect(() => {
+    if (isBypassRoute) return;
     const session = getSession();
     setSignedIn(Boolean(session));
     setReady(true);
-    if (!session && pathname !== "/signin") {
+    if (!session) {
       router.replace("/signin");
     }
-  }, [pathname, router]);
+  }, [pathname, router, isBypassRoute]);
 
-  if (pathname === "/signin") return <>{children}</>;
+  if (isBypassRoute) return <>{children}</>;
 
   if (!ready || !signedIn) {
     return (
