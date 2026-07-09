@@ -660,47 +660,45 @@ export default function CustomerStatementPage() {
           {selectedCustomer && !customerDataError && customerDataLoaded && (
             <>
               {/* Date range filter */}
-              <div className="mb-6 flex flex-wrap items-end gap-2 print:hidden">
-                <FormField label="From">
-                  <input
-                    type="date"
-                    aria-label="From date"
-                    className={`${inputClass} w-auto text-xs`}
-                    value={dateFrom ?? ""}
-                    max={todayISO()}
-                    onChange={(e) => {
-                      setDateFrom(e.target.value || null);
-                      setRangePreset("custom");
-                    }}
-                  />
-                </FormField>
-                <FormField label="To">
-                  <input
-                    type="date"
-                    aria-label="To date"
-                    className={`${inputClass} w-auto text-xs`}
-                    value={dateTo ?? ""}
-                    max={todayISO()}
-                    onChange={(e) => {
-                      setDateTo(e.target.value || null);
-                      setRangePreset("custom");
-                    }}
-                  />
-                </FormField>
-                <FormField label="Quick range">
-                  <select
-                    className={`${inputClass} w-auto text-xs`}
-                    value={rangePreset}
-                    onChange={(e) => applyPreset(e.target.value as DateRangePreset)}
+              <div className="mb-6 flex flex-wrap items-center gap-2 print:hidden">
+                {(Object.keys(PRESET_LABELS) as (keyof typeof PRESET_LABELS)[]).map((key) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => applyPreset(key)}
+                    className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                      rangePreset === key
+                        ? "bg-brand text-white"
+                        : "border border-slate-300 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                    }`}
                   >
-                    {(Object.keys(PRESET_LABELS) as (keyof typeof PRESET_LABELS)[]).map((key) => (
-                      <option key={key} value={key}>
-                        {PRESET_LABELS[key]}
-                      </option>
-                    ))}
-                    {rangePreset === "custom" && <option value="custom">Custom range…</option>}
-                  </select>
-                </FormField>
+                    {PRESET_LABELS[key]}
+                  </button>
+                ))}
+                <span className="hidden h-6 w-px bg-slate-200 dark:bg-slate-800 sm:block" />
+                <input
+                  type="date"
+                  aria-label="From date"
+                  className={`${inputClass} w-auto text-xs`}
+                  value={dateFrom ?? ""}
+                  max={todayISO()}
+                  onChange={(e) => {
+                    setDateFrom(e.target.value || null);
+                    setRangePreset("custom");
+                  }}
+                />
+                <span className="text-xs text-slate-400 dark:text-slate-500">to</span>
+                <input
+                  type="date"
+                  aria-label="To date"
+                  className={`${inputClass} w-auto text-xs`}
+                  value={dateTo ?? ""}
+                  max={todayISO()}
+                  onChange={(e) => {
+                    setDateTo(e.target.value || null);
+                    setRangePreset("custom");
+                  }}
+                />
               </div>
 
               {/* Summary strip */}
@@ -732,25 +730,6 @@ export default function CustomerStatementPage() {
                   />
                 </div>
               )}
-
-              {/* Outstanding aging summary — sits just above the ledger, a quick
-                  collections signal before you read a single row. */}
-              <div className="mb-6">
-                <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                  Aging Summary <span className="font-normal normal-case text-slate-400 dark:text-slate-500">— as of {formatDate(todayISO())}</span>
-                </h3>
-                <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
-                  <Stat label="Current" value={formatCurrency(aging.current)} valueClassName="text-slate-800 dark:text-slate-100" />
-                  <StatDivider />
-                  <Stat label="1–30 days" value={formatCurrency(aging.d1_30)} valueClassName="text-amber-600 dark:text-amber-400" />
-                  <StatDivider />
-                  <Stat label="31–60 days" value={formatCurrency(aging.d31_60)} valueClassName="text-orange-600 dark:text-orange-400" />
-                  <StatDivider />
-                  <Stat label="61–90 days" value={formatCurrency(aging.d61_90)} valueClassName="text-red-600 dark:text-red-400" />
-                  <StatDivider />
-                  <Stat label="90+ days" value={formatCurrency(aging.d90plus)} valueClassName="text-red-700 dark:text-red-500" />
-                </div>
-              </div>
 
               {/* Ledger table */}
               <div className="overflow-x-auto">
@@ -794,16 +773,7 @@ export default function CustomerStatementPage() {
                         return (
                           <Fragment key={r.id}>
                             <tr
-                              onClick={() => toggleExpand(r)}
-                              role="button"
-                              tabIndex={0}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter" || e.key === " ") {
-                                  e.preventDefault();
-                                  toggleExpand(r);
-                                }
-                              }}
-                              className={`cursor-pointer border-b border-slate-100 last:border-0 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800/50 dark:print:border-slate-100 ${
+                              className={`border-b border-slate-100 last:border-0 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800/50 dark:print:border-slate-100 ${
                                 r.kind === "receipt" ? "bg-emerald-50/40 dark:bg-emerald-900/10" : ""
                               }`}
                             >
@@ -817,7 +787,11 @@ export default function CustomerStatementPage() {
                                 )}
                               </td>
                               <td className="px-4 py-3">
-                                <span className="flex items-center gap-1 text-brand dark:text-brand-300 print:text-slate-700">
+                                <button
+                                  type="button"
+                                  onClick={() => toggleExpand(r)}
+                                  className="flex items-center gap-1 text-brand hover:underline dark:text-brand-300 print:text-slate-700 print:no-underline"
+                                >
                                   <svg
                                     className={`h-3 w-3 flex-none transition-transform duration-150 print:hidden ${expanded ? "rotate-90" : ""}`}
                                     viewBox="0 0 24 24"
@@ -830,7 +804,7 @@ export default function CustomerStatementPage() {
                                     <polyline points="9 18 15 12 9 6" />
                                   </svg>
                                   {r.reference}
-                                </span>
+                                </button>
                               </td>
                               <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums text-slate-700 dark:text-slate-300 dark:print:text-slate-700">
                                 {r.debit > 0 ? formatCurrency(r.debit) : "–"}
@@ -878,6 +852,25 @@ export default function CustomerStatementPage() {
                     </tr>
                   </tbody>
                 </table>
+              </div>
+
+              {/* Outstanding aging summary */}
+              <div className="mt-8 border-t border-slate-200 pt-6 dark:border-slate-800">
+                <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                  Outstanding Aging Summary{" "}
+                  <span className="font-normal normal-case text-slate-400 dark:text-slate-500">— as of {formatDate(todayISO())}</span>
+                </h3>
+                <div className="flex flex-wrap items-center gap-x-6 gap-y-4">
+                  <Stat label="Current" value={formatCurrency(aging.current)} valueClassName="text-slate-800 dark:text-slate-100" />
+                  <StatDivider />
+                  <Stat label="1–30 days" value={formatCurrency(aging.d1_30)} valueClassName="text-amber-600 dark:text-amber-400" />
+                  <StatDivider />
+                  <Stat label="31–60 days" value={formatCurrency(aging.d31_60)} valueClassName="text-orange-600 dark:text-orange-400" />
+                  <StatDivider />
+                  <Stat label="61–90 days" value={formatCurrency(aging.d61_90)} valueClassName="text-red-600 dark:text-red-400" />
+                  <StatDivider />
+                  <Stat label="90+ days" value={formatCurrency(aging.d90plus)} valueClassName="text-red-700 dark:text-red-500" />
+                </div>
               </div>
             </>
           )}
