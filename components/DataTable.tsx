@@ -16,13 +16,16 @@ export function DataTable<T extends { id: string }>({
   columns,
   rows,
   empty = "Nothing here yet.",
+  onRowClick,
 }: {
   columns: Column<T>[];
   rows: T[];
   empty?: string;
+  /** When set, the whole row navigates/reacts on click (not just a linked cell). */
+  onRowClick?: (row: T) => void;
 }) {
   return (
-    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+    <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-slate-200 bg-slate-50 text-left dark:border-slate-800 dark:bg-slate-800/50">
@@ -42,7 +45,13 @@ export function DataTable<T extends { id: string }>({
             </tr>
           ) : (
             rows.map((row) => (
-              <tr key={row.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800/50">
+              <tr
+                key={row.id}
+                onClick={onRowClick ? () => onRowClick(row) : undefined}
+                className={`border-b border-slate-100 last:border-0 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800/50 ${
+                  onRowClick ? "cursor-pointer" : ""
+                }`}
+              >
                 {columns.map((c) => (
                   <td key={c.key} className={`px-4 py-3 text-slate-700 dark:text-slate-300 ${c.className ?? ""}`}>
                     {c.render ? c.render(row) : String((row as Record<string, unknown>)[c.key] ?? "")}
