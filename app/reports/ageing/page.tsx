@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { supabase, isConfigured } from "@/lib/supabase";
 import type { Customer, Invoice, Receipt, ReceiptAllocation } from "@/lib/types";
@@ -27,9 +27,10 @@ import autoTable from "jspdf-autotable";
   not a guess from the free-text address.
 */
 type Bucket = "notDue" | "d0_30" | "d31_60" | "d61_90" | "d90plus";
-type SortKey = "name" | "state" | "creditLimit" | "total" | Bucket;
+type SortKey = "name" | "state" | "creditLimit" | "total" | "oldestOverdueDays" | "priorityRank" | Bucket;
 type SortDir = "asc" | "desc";
 type ExportTemplate = "summary" | "detailed" | "location";
+type Priority = "High" | "Medium" | "Low";
 
 interface AgeingRow {
   id: string;
@@ -38,6 +39,9 @@ interface AgeingRow {
   state: string;
   creditLimit: number;
   overLimit: boolean;
+  oldestOverdueDays: number;
+  priority: Priority;
+  priorityRank: number;
   notDue: number;
   d0_30: number;
   d31_60: number;
@@ -134,9 +138,26 @@ function bucketFor(dueDate: string, asOf: Date): Bucket {
   return "d90plus";
 }
 
+// Collection priority — a transparent, rule-based triage so a non-technical
+// AR team can see who to chase first without a black-box score:
+//   High   — an invoice more than 60 days overdue, or already over their credit limit
+//   Medium — oldest overdue invoice is 31–60 days
+//   Low    — nothing over 30 days overdue and within their credit limit
+function priorityFor(oldestOverdueDays: number, overLimit: boolean): { priority: Priority; priorityRank: number } {
+  if (oldestOverdueDays > 60 || overLimit) return { priority: "High", priorityRank: 3 };
+  if (oldestOverdueDays >= 31) return { priority: "Medium", priorityRank: 2 };
+  return { priority: "Low", priorityRank: 1 };
+}
+
 function formatCurrency(n: number) {
   return `₹${n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
+
+const PRIORITY_BADGE: Record<Priority, string> = {
+  High: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300",
+  Medium: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
+  Low: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
+};
 
 function csvCell(v: string | number) {
   const s = String(v);
@@ -158,12 +179,18 @@ export default function AgeingReportPage() {
   const [overdueOnly, setOverdueOnly] = useState(false);
   const [overLimitOnly, setOverLimitOnly] = useState(false);
   const [creditLimitOverride, setCreditLimitOverride] = useState("");
+  const [priorityFilter, setPriorityFilter] = useState<"all" | Priority>("all");
 
   const [visibleBuckets, setVisibleBuckets] = useState<Record<Bucket, boolean>>({
     notDue: true, d0_30: true, d31_60: true, d61_90: true, d90plus: true,
   });
   const [showLocationCol, setShowLocationCol] = useState(true);
   const [showCreditLimitCol, setShowCreditLimitCol] = useState(false);
+  const [showPriorityCol, setShowPriorityCol] = useState(true);
+  const [showOldestOverdueCol, setShowOldestOverdueCol] = useState(true);
+
+  const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
 
   const [sortKey, setSortKey] = useState<SortKey>("total");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
@@ -190,6 +217,15 @@ export default function AgeingReportPage() {
       setAllocations(alloc.data as ReceiptAllocation[]);
     })();
   }, []);
+
+  useEffect(() => {
+    if (!exportMenuOpen) return;
+    function handleClickOutside(e: MouseEvent) {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(e.target as Node)) setExportMenuOpen(false);
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [exportMenuOpen]);
 
   const loaded = customers && invoices && receipts && allocations;
 
@@ -257,14 +293,18 @@ export default function AgeingReportPage() {
       if (!row) {
         const cust = customerIndex.get(l.customerId)!;
         const creditLimit = overrideLimit !== null ? overrideLimit : cust.credit_limit;
-        row = { id: cust.id, code: cust.code, name: cust.name, state: cust.state, creditLimit, overLimit: false, ...EMPTY_BUCKETS };
+        row = { id: cust.id, code: cust.code, name: cust.name, state: cust.state, creditLimit, overLimit: false, oldestOverdueDays: 0, priority: "Low", priorityRank: 1, ...EMPTY_BUCKETS };
         byCustomer.set(l.customerId, row);
       }
       row[l.bucket] += l.outstanding;
       row.total += l.outstanding;
+      row.oldestOverdueDays = Math.max(row.oldestOverdueDays, l.daysOverdue);
     }
     for (const row of byCustomer.values()) {
       row.overLimit = row.creditLimit > 0 && row.total > row.creditLimit;
+      const { priority, priorityRank } = priorityFor(row.oldestOverdueDays, row.overLimit);
+      row.priority = priority;
+      row.priorityRank = priorityRank;
     }
     return Array.from(byCustomer.values());
   }, [lines, customerIndex, overrideLimit]);
@@ -287,9 +327,10 @@ export default function AgeingReportPage() {
       if (r.total < min) return false;
       if (overdueOnly && r.total - r.notDue <= 0.005) return false;
       if (overLimitOnly && !r.overLimit) return false;
+      if (priorityFilter !== "all" && r.priority !== priorityFilter) return false;
       return true;
     });
-  }, [identityFilteredRows, bucketFilter, minOutstanding, overdueOnly, overLimitOnly]);
+  }, [identityFilteredRows, bucketFilter, minOutstanding, overdueOnly, overLimitOnly, priorityFilter]);
 
   const sortedRows = useMemo(() => {
     const arr = [...filteredRows];
@@ -316,6 +357,7 @@ export default function AgeingReportPage() {
   }, [filteredRows]);
 
   const overLimitCount = useMemo(() => filteredRows.filter((r) => r.overLimit).length, [filteredRows]);
+  const highPriorityCount = useMemo(() => filteredRows.filter((r) => r.priority === "High").length, [filteredRows]);
 
   // DSO (trailing 90 days) for the current location/search segment — the standard
   // AR health metric: outstanding receivables ÷ recent credit sales × window days.
@@ -394,6 +436,7 @@ export default function AgeingReportPage() {
     setOverdueOnly(false);
     setOverLimitOnly(false);
     setCreditLimitOverride("");
+    setPriorityFilter("all");
   }
 
   const activeBucketCols = BUCKET_COLS.filter((b) => visibleBuckets[b.key]);
@@ -401,17 +444,19 @@ export default function AgeingReportPage() {
   const creditLimitColLabel = overrideLimit !== null ? "Credit Limit (override)" : "Credit Limit";
   const filtersActive =
     search !== "" || locationFilter !== "all" || bucketFilter !== "all" || minOutstanding !== "" ||
-    overdueOnly || overLimitOnly || creditLimitOverride !== "" || asOfDate !== todayISO();
+    overdueOnly || overLimitOnly || creditLimitOverride !== "" || priorityFilter !== "all" || asOfDate !== todayISO();
 
   // ---- export: one shared table builder feeding CSV / Excel / PDF -----------
 
   function buildExportTable(): { title: string; columns: ExportColumn[]; rows: (string | number)[][]; footer?: (string | number)[] } {
     if (exportTemplate === "detailed") {
+      const priorityByCustomer = new Map(filteredRows.map((r) => [r.id, r.priority]));
       const columns: ExportColumn[] = [
         { header: "Invoice No", type: "text" },
         { header: "Customer Code", type: "text" },
         { header: "Customer Name", type: "text" },
         ...(showLocationCol ? [{ header: "Location", type: "text" as const }] : []),
+        ...(showPriorityCol ? [{ header: "Priority", type: "text" as const }] : []),
         { header: "Invoice Date", type: "text" },
         { header: "Due Date", type: "text" },
         { header: "Days Overdue", type: "number" },
@@ -427,10 +472,11 @@ export default function AgeingReportPage() {
       const rows = detailLines.map((l) => [
         l.invoiceNo, l.customerCode, l.customerName,
         ...(showLocationCol ? [l.state] : []),
+        ...(showPriorityCol ? [priorityByCustomer.get(l.customerId) ?? ""] : []),
         l.invoiceDate, l.dueDate, l.daysOverdue, bucketLabel[l.bucket], l.outstanding,
       ]);
       const total = detailLines.reduce((s, l) => s + l.outstanding, 0);
-      const footer = ["", "", "Total", ...(showLocationCol ? [""] : []), "", "", "", "", total];
+      const footer = ["", "", "Total", ...(showLocationCol ? [""] : []), ...(showPriorityCol ? [""] : []), "", "", "", "", total];
       return { title: `AR Ageing — Detailed (invoice level), as of ${asOfLabel}`, columns, rows, footer };
     }
 
@@ -452,6 +498,8 @@ export default function AgeingReportPage() {
       { header: "Customer Name", type: "text" },
       ...(showLocationCol ? [{ header: "Location", type: "text" as const }] : []),
       ...(showCreditLimitCol ? [{ header: creditLimitColLabel, type: "currency" as const }] : []),
+      ...(showOldestOverdueCol ? [{ header: "Oldest Overdue (days)", type: "number" as const }] : []),
+      ...(showPriorityCol ? [{ header: "Priority", type: "text" as const }] : []),
       ...activeBucketCols.map((b) => ({ header: b.header, type: "currency" as const })),
       { header: "Total Outstanding", type: "currency" },
       { header: "Over Limit", type: "text" },
@@ -460,6 +508,8 @@ export default function AgeingReportPage() {
       r.code, r.name,
       ...(showLocationCol ? [r.state] : []),
       ...(showCreditLimitCol ? [r.creditLimit] : []),
+      ...(showOldestOverdueCol ? [r.oldestOverdueDays] : []),
+      ...(showPriorityCol ? [r.priority] : []),
       ...activeBucketCols.map((b) => r[b.key]),
       r.total,
       r.overLimit ? "Yes" : "",
@@ -468,6 +518,8 @@ export default function AgeingReportPage() {
       "", "Grand Total",
       ...(showLocationCol ? [""] : []),
       ...(showCreditLimitCol ? [""] : []),
+      ...(showOldestOverdueCol ? [""] : []),
+      ...(showPriorityCol ? [""] : []),
       ...activeBucketCols.map((b) => grandTotal[b.key]),
       grandTotal.total,
       "",
@@ -536,15 +588,45 @@ export default function AgeingReportPage() {
                 ))}
               </select>
             </FormField>
-            <button type="button" onClick={exportCsv} className="rounded-lg border border-brand px-4 py-2 text-sm font-semibold text-brand transition-all duration-200 hover:bg-brand-50 active:scale-95 dark:border-brand-300 dark:text-brand-300 dark:hover:bg-brand-900/30">
-              CSV
-            </button>
-            <button type="button" onClick={exportXlsx} className="rounded-lg border border-brand px-4 py-2 text-sm font-semibold text-brand transition-all duration-200 hover:bg-brand-50 active:scale-95 dark:border-brand-300 dark:text-brand-300 dark:hover:bg-brand-900/30">
-              Excel
-            </button>
-            <button type="button" onClick={exportPdf} className="rounded-lg border border-brand px-4 py-2 text-sm font-semibold text-brand transition-all duration-200 hover:bg-brand-50 active:scale-95 dark:border-brand-300 dark:text-brand-300 dark:hover:bg-brand-900/30">
-              PDF
-            </button>
+            <div ref={exportMenuRef} className="relative">
+              <button
+                type="button"
+                onClick={() => setExportMenuOpen((o) => !o)}
+                aria-expanded={exportMenuOpen}
+                aria-haspopup="menu"
+                className="flex items-center gap-1.5 rounded-lg border border-brand px-4 py-2 text-sm font-semibold text-brand transition-all duration-200 hover:bg-brand-50 active:scale-95 dark:border-brand-300 dark:text-brand-300 dark:hover:bg-brand-900/30"
+              >
+                Export
+                <svg className={`h-3.5 w-3.5 transition-transform duration-200 ${exportMenuOpen ? "rotate-180" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+              </button>
+              {exportMenuOpen && (
+                <div
+                  role="menu"
+                  className="absolute right-0 z-10 mt-1 w-40 overflow-hidden rounded-lg border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-900"
+                >
+                  {[
+                    { label: "CSV", action: exportCsv },
+                    { label: "Excel (.xlsx)", action: exportXlsx },
+                    { label: "PDF", action: exportPdf },
+                  ].map((item) => (
+                    <button
+                      key={item.label}
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        item.action();
+                        setExportMenuOpen(false);
+                      }}
+                      className="block w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800"
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
             <button type="button" onClick={() => window.print()} className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white transition-all duration-200 hover:bg-brand-700 active:scale-95">
               Print
             </button>
@@ -577,7 +659,7 @@ export default function AgeingReportPage() {
       {isConfigured && !error && loaded && (
         <>
           {/* KPI tiles */}
-          <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5 print:hidden">
+          <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-6 print:hidden">
             <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Total Outstanding</p>
               <p className="mt-1 text-xl font-bold text-brand dark:text-brand-300">{formatCurrency(grandTotal.total)}</p>
@@ -589,6 +671,10 @@ export default function AgeingReportPage() {
             <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Not Due</p>
               <p className="mt-1 text-xl font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(grandTotal.notDue)}</p>
+            </div>
+            <div className="rounded-xl border border-red-200 bg-red-50 p-4 dark:border-red-500/30 dark:bg-red-950/30">
+              <p className="text-xs font-semibold uppercase tracking-wide text-red-600 dark:text-red-400">Needs Attention</p>
+              <p className="mt-1 text-xl font-bold text-red-700 dark:text-red-300">{highPriorityCount} customer{highPriorityCount === 1 ? "" : "s"}</p>
             </div>
             <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Over Credit Limit</p>
@@ -646,6 +732,14 @@ export default function AgeingReportPage() {
                 onChange={(e) => setMinOutstanding(e.target.value)}
               />
             </FormField>
+            <FormField label="Priority">
+              <select className={inputClass} value={priorityFilter} onChange={(e) => setPriorityFilter(e.target.value as "all" | Priority)}>
+                <option value="all">All priorities</option>
+                <option value="High">High — needs attention</option>
+                <option value="Medium">Medium</option>
+                <option value="Low">Low</option>
+              </select>
+            </FormField>
             <FormField label="Credit limit override (₹)">
               <input
                 type="number"
@@ -702,6 +796,14 @@ export default function AgeingReportPage() {
               <input type="checkbox" checked={showCreditLimitCol} onChange={(e) => setShowCreditLimitCol(e.target.checked)} className="h-3.5 w-3.5 rounded border-slate-300 text-brand focus:ring-brand dark:border-slate-700" />
               Credit Limit
             </label>
+            <label className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
+              <input type="checkbox" checked={showOldestOverdueCol} onChange={(e) => setShowOldestOverdueCol(e.target.checked)} className="h-3.5 w-3.5 rounded border-slate-300 text-brand focus:ring-brand dark:border-slate-700" />
+              Oldest Overdue
+            </label>
+            <label className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
+              <input type="checkbox" checked={showPriorityCol} onChange={(e) => setShowPriorityCol(e.target.checked)} className="h-3.5 w-3.5 rounded border-slate-300 text-brand focus:ring-brand dark:border-slate-700" />
+              Priority
+            </label>
           </div>
 
           <p className="mb-2 text-xs text-slate-400 dark:text-slate-500 print:hidden">
@@ -725,6 +827,16 @@ export default function AgeingReportPage() {
                       {creditLimitColLabel}{sortArrow("creditLimit")}
                     </th>
                   )}
+                  {showOldestOverdueCol && (
+                    <th className="cursor-pointer select-none px-4 py-3 text-right font-semibold text-slate-600 dark:text-slate-300" onClick={() => toggleSort("oldestOverdueDays")}>
+                      Oldest Overdue{sortArrow("oldestOverdueDays")}
+                    </th>
+                  )}
+                  {showPriorityCol && (
+                    <th className="cursor-pointer select-none px-4 py-3 text-left font-semibold text-slate-600 dark:text-slate-300" onClick={() => toggleSort("priorityRank")}>
+                      Priority{sortArrow("priorityRank")}
+                    </th>
+                  )}
                   {activeBucketCols.map((b) => (
                     <th key={b.key} className="cursor-pointer select-none px-4 py-3 text-right font-semibold text-slate-600 dark:text-slate-300" onClick={() => toggleSort(b.key)}>
                       {b.header}{sortArrow(b.key)}
@@ -739,7 +851,15 @@ export default function AgeingReportPage() {
                 {sortedRows.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={1 + (showLocationCol ? 1 : 0) + (showCreditLimitCol ? 1 : 0) + activeBucketCols.length + 1}
+                      colSpan={
+                        1 +
+                        (showLocationCol ? 1 : 0) +
+                        (showCreditLimitCol ? 1 : 0) +
+                        (showOldestOverdueCol ? 1 : 0) +
+                        (showPriorityCol ? 1 : 0) +
+                        activeBucketCols.length +
+                        1
+                      }
                       className="px-4 py-10 text-center text-slate-400 dark:text-slate-500"
                     >
                       {summaryRows.length === 0 ? "Nothing outstanding — every invoice is fully paid." : "No customers match these filters."}
@@ -762,6 +882,18 @@ export default function AgeingReportPage() {
                         </td>
                         {showLocationCol && <td className="px-4 py-3 text-slate-700 dark:text-slate-300">{r.state}</td>}
                         {showCreditLimitCol && <td className="px-4 py-3 text-right text-slate-700 dark:text-slate-300">{formatCurrency(r.creditLimit)}</td>}
+                        {showOldestOverdueCol && (
+                          <td className="px-4 py-3 text-right text-slate-700 dark:text-slate-300">
+                            {r.oldestOverdueDays > 0 ? `${r.oldestOverdueDays} days` : "–"}
+                          </td>
+                        )}
+                        {showPriorityCol && (
+                          <td className="px-4 py-3">
+                            <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${PRIORITY_BADGE[r.priority]}`}>
+                              {r.priority}
+                            </span>
+                          </td>
+                        )}
                         {activeBucketCols.map((b) => (
                           <td key={b.key} className="px-4 py-3 text-right text-slate-700 dark:text-slate-300">
                             {r[b.key] > 0 ? formatCurrency(r[b.key]) : "–"}
@@ -776,6 +908,8 @@ export default function AgeingReportPage() {
                       <td className="px-4 py-3 text-slate-800 dark:text-slate-100">Grand Total</td>
                       {showLocationCol && <td className="px-4 py-3" />}
                       {showCreditLimitCol && <td className="px-4 py-3" />}
+                      {showOldestOverdueCol && <td className="px-4 py-3" />}
+                      {showPriorityCol && <td className="px-4 py-3" />}
                       {activeBucketCols.map((b) => (
                         <td key={b.key} className="px-4 py-3 text-right text-slate-800 dark:text-slate-100">
                           {formatCurrency(grandTotal[b.key])}
