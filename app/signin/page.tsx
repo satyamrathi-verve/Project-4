@@ -80,7 +80,7 @@ export default function SignInPage() {
         <div className="pointer-events-none absolute -top-24 -right-24 h-72 w-72 rounded-full bg-white/10 blur-3xl" />
         <div className="pointer-events-none absolute -bottom-24 -left-16 h-72 w-72 rounded-full bg-accent/20 blur-3xl" />
 
-        <img src="/verve-logo-white.png" alt="Verve Advisory" className="relative h-10 w-auto" />
+        <img src="/verve-logo-white.png" alt="Verve Advisory" className="relative h-6 w-auto" />
 
         <div className="relative animate-fade-in-up">
           <h1 className="text-3xl font-bold leading-tight">Take control of your receivables.</h1>
@@ -124,8 +124,8 @@ export default function SignInPage() {
           className="relative w-full max-w-sm animate-fade-in-up rounded-2xl border border-slate-200 bg-white/90 p-8 shadow-xl shadow-brand-900/10 backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/90 lg:border-none lg:bg-transparent lg:p-0 lg:shadow-none lg:backdrop-blur-none dark:lg:bg-transparent"
         >
           <div className="flex flex-col items-center text-center lg:items-start lg:text-left">
-            <img src="/verve-logo-blue.png" alt="Verve Advisory" className="h-14 w-auto dark:hidden lg:hidden" />
-            <img src="/verve-logo-white.png" alt="Verve Advisory" className="hidden h-14 w-auto dark:block lg:hidden" />
+            <img src="/verve-logo-blue.png" alt="Verve Advisory" className="h-8 w-auto dark:hidden lg:hidden" />
+            <img src="/verve-logo-white.png" alt="Verve Advisory" className="hidden h-8 w-auto dark:block lg:hidden" />
             <h1 className="mt-4 text-xl font-bold text-slate-900 dark:text-slate-100 lg:mt-0">Welcome back</h1>
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Sign in to pick up right where the team left off.</p>
           </div>
