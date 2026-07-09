@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
+import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { getSession, signOut } from "@/lib/auth";
 import { Nav } from "@/components/Nav";
@@ -8,6 +9,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { GlobalSearch } from "@/components/GlobalSearch";
 import { AskAria } from "@/components/AskAria";
 import { Toaster } from "@/components/Toast";
+import { ScreenIcon } from "@/components/icons";
 
 /* Hides the app (nav + header) until signed in. The Sign In page renders
    full-screen with no chrome; every other route needs a session or gets bounced. */
@@ -58,6 +60,13 @@ export function AuthGate({ children }: { children: ReactNode }) {
         <header className="flex flex-none items-center gap-4 border-b border-slate-200 px-6 py-2.5 dark:border-slate-800 print:hidden">
           <GlobalSearch />
           <div className="ml-auto flex items-center gap-3">
+            <Link
+              href="/upload"
+              className="flex items-center gap-2 rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white transition-all duration-200 hover:bg-brand-700 active:scale-95"
+            >
+              <ScreenIcon name="upload" className="h-4 w-4 flex-none" />
+              Upload
+            </Link>
             <ThemeToggle />
             <button
               onClick={handleSignOut}
