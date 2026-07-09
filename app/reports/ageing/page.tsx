@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { supabase, isConfigured } from "@/lib/supabase";
 import type { Customer, Invoice, Receipt, ReceiptAllocation } from "@/lib/types";
 import { PageHeader } from "@/components/PageHeader";
@@ -749,7 +750,9 @@ export default function AgeingReportPage() {
                     {sortedRows.map((r) => (
                       <tr key={r.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800/50">
                         <td className="px-4 py-3 font-medium text-slate-700 dark:text-slate-300">
-                          {r.name}
+                          <Link href={`/invoices?customer=${r.id}`} className="text-brand hover:underline dark:text-brand-300 print:text-slate-700 print:no-underline">
+                            {r.name}
+                          </Link>
                           <span className="ml-2 text-xs font-normal text-slate-400 dark:text-slate-500">{r.code}</span>
                           {r.overLimit && (
                             <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">

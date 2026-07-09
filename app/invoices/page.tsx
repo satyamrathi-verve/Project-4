@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { supabase, isConfigured } from "@/lib/supabase";
 import type { Customer, Invoice, InvoiceStatus, ReceiptAllocation } from "@/lib/types";
 import { PageHeader } from "@/components/PageHeader";
@@ -16,6 +17,7 @@ interface InvoiceRow {
   id: string;
   invoice_no: string;
   invoice_date: string;
+  customer_id: string;
   customerName: string;
   total: number;
   paid: number;
@@ -32,6 +34,9 @@ const STATUS_OPTIONS: { value: "all" | InvoiceStatus; label: string }[] = [
 ];
 
 export default function InvoiceListPage() {
+  const searchParams = useSearchParams();
+  const customerId = searchParams.get("customer");
+
   const [rows, setRows] = useState<InvoiceRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -67,6 +72,7 @@ export default function InvoiceListPage() {
         id: inv.id,
         invoice_no: inv.invoice_no,
         invoice_date: inv.invoice_date,
+        customer_id: inv.customer_id,
         customerName: customerMap.get(inv.customer_id)?.name ?? "Unknown customer",
         total: inv.total,
         paid,
@@ -103,6 +109,7 @@ export default function InvoiceListPage() {
   }
 
   const filtered = (rows ?? []).filter((r) => {
+    if (customerId && r.customer_id !== customerId) return false;
     if (status !== "all" && r.status !== status) return false;
     if (dateFrom && r.invoice_date < dateFrom) return false;
     if (dateTo && r.invoice_date > dateTo) return false;
@@ -112,6 +119,8 @@ export default function InvoiceListPage() {
     }
     return true;
   });
+
+  const customerFilterName = customerId ? (rows ?? []).find((r) => r.customer_id === customerId)?.customerName : null;
 
   const columns: Column<InvoiceRow>[] = [
     {
@@ -188,6 +197,17 @@ export default function InvoiceListPage() {
 
       {isConfigured && (
         <>
+          {customerId && (
+            <div className="mb-4 flex items-center gap-2 text-sm">
+              <span className="inline-flex items-center gap-2 rounded-full bg-brand-50 px-3 py-1 font-medium text-brand dark:bg-brand-900/30 dark:text-brand-300">
+                Customer: {customerFilterName ?? "…"}
+                <Link href="/invoices" className="text-brand/70 hover:text-brand dark:text-brand-300/70 dark:hover:text-brand-300" aria-label="Clear customer filter">
+                  ×
+                </Link>
+              </span>
+            </div>
+          )}
+
           {notice && (
             <div role="status" className="mb-4 rounded-xl border border-emerald-300 bg-emerald-50 p-4 text-sm text-emerald-800 dark:border-emerald-500/40 dark:bg-emerald-950/40 dark:text-emerald-200">
               {notice}
