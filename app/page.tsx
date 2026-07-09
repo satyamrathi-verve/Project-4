@@ -15,8 +15,8 @@ import { ScreenIcon } from "@/components/icons";
   update automatically.
 */
 const ROADMAP: { icon: string; title: string; desc: string; built: boolean }[] = [
-  { icon: "signin", title: "Sign In", desc: "A front-door login gate", built: false },
-  { icon: "customers", title: "Customer Master", desc: "List customers, add / edit one", built: false },
+  { icon: "signin", title: "Sign In", desc: "A front-door login gate", built: true },
+  { icon: "customers", title: "Customer Master", desc: "List customers, add / edit one", built: true },
   { icon: "gl", title: "GL Master", desc: "The ledger accounts list", built: false },
   { icon: "invoices", title: "Sales Invoice — List", desc: "Search + filter by status", built: true },
   { icon: "invoices", title: "Sales Invoice — View", desc: "Read-only invoice detail", built: true },

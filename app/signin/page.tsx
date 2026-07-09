@@ -80,7 +80,7 @@ export default function SignInPage() {
         <div className="pointer-events-none absolute -top-24 -right-24 h-72 w-72 rounded-full bg-white/10 blur-3xl" />
         <div className="pointer-events-none absolute -bottom-24 -left-16 h-72 w-72 rounded-full bg-accent/20 blur-3xl" />
 
-        <img src="/verve-logo-white.png" alt="Verve Advisory" className="relative h-6 w-auto" />
+        <img src="/verve-logo-white.png" alt="Verve Advisory" className="relative h-8 w-auto self-start" />
 
         <div className="relative animate-fade-in-up">
           <h1 className="text-3xl font-bold leading-tight">Take control of your receivables.</h1>
