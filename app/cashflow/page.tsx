@@ -284,7 +284,22 @@ export default function CashflowPage() {
     });
   }
 
-  const chartData: BarChartDatum[] = visibleRows.map((p) => ({ key: p.key, label: p.chartLabel, value: p.total, cumulative: p.cumulative }));
+  const chartData: BarChartDatum[] = visibleRows.map((p) => {
+    let overdueValue = 0;
+    let overdueCount = 0;
+    let onTimeValue = 0;
+    let onTimeCount = 0;
+    for (const inv of p.invoices) {
+      if (parseISODate(inv.due_date) < today) {
+        overdueValue += inv.effAmount;
+        overdueCount += 1;
+      } else {
+        onTimeValue += inv.effAmount;
+        onTimeCount += 1;
+      }
+    }
+    return { key: p.key, label: p.label, overdueValue, overdueCount, onTimeValue, onTimeCount, cumulative: p.cumulative };
+  });
 
   const periodColumns: Column<(typeof visibleRows)[number]>[] = [
     { key: "label", header: "Period" },
