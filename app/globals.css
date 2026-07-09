@@ -28,4 +28,53 @@ body {
     background: #fff !important;
     color: #0f172a !important;
   }
+  /* never animate on paper */
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* ---- app-wide animation helpers (all skipped for reduced-motion users) ---- */
+
+@keyframes reveal-up {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes fade-in-soft {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes grow-y-svg {
+  from { transform: scaleY(0); }
+  to { transform: scaleY(1); }
+}
+@keyframes row-in {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /* SVG bars grow up from the baseline (BarChart) */
+  svg .bar-grow {
+    transform-box: fill-box;
+    transform-origin: bottom;
+    animation: grow-y-svg 0.8s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  /* table rows cascade in on every list */
+  tbody tr {
+    animation: row-in 0.3s ease-out both;
+  }
+  tbody tr:nth-child(1) { animation-delay: 0ms; }
+  tbody tr:nth-child(2) { animation-delay: 35ms; }
+  tbody tr:nth-child(3) { animation-delay: 70ms; }
+  tbody tr:nth-child(4) { animation-delay: 105ms; }
+  tbody tr:nth-child(5) { animation-delay: 140ms; }
+  tbody tr:nth-child(6) { animation-delay: 175ms; }
+  tbody tr:nth-child(7) { animation-delay: 210ms; }
+  tbody tr:nth-child(8) { animation-delay: 245ms; }
+  tbody tr:nth-child(9) { animation-delay: 280ms; }
+  tbody tr:nth-child(n + 10) { animation-delay: 310ms; }
 }

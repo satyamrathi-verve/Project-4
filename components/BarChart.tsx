@@ -104,7 +104,8 @@ export function BarChart({ data }: { data: BarChartDatum[] }) {
                     width={barWidth}
                     height={Math.max(b.overdueH, 1)}
                     rx={2}
-                    className="pointer-events-none fill-red-500"
+                    className="bar-grow pointer-events-none fill-red-500"
+                    style={{ animationDelay: `${i * 55}ms` }}
                   />
                 )}
                 {d.onTimeValue > 0 && (
@@ -114,7 +115,8 @@ export function BarChart({ data }: { data: BarChartDatum[] }) {
                     width={barWidth}
                     height={Math.max(b.onTimeH, 1)}
                     rx={2}
-                    className="pointer-events-none fill-brand dark:fill-brand-400"
+                    className="bar-grow pointer-events-none fill-brand dark:fill-brand-400"
+                    style={{ animationDelay: `${i * 55 + 60}ms` }}
                   />
                 )}
                 {d.overdueValue === 0 && d.onTimeValue === 0 && (
@@ -141,7 +143,13 @@ export function BarChart({ data }: { data: BarChartDatum[] }) {
             );
           })}
 
-          <path d={linePath} fill="none" strokeWidth={2} className="pointer-events-none stroke-accent" />
+          <path
+            d={linePath}
+            fill="none"
+            strokeWidth={2}
+            className="pointer-events-none stroke-accent"
+            style={{ animation: `fade-in-soft 0.6s ease-out ${data.length * 55 + 250}ms both` }}
+          />
           {points.map((p, i) => (
             <circle
               key={data[i].key}
@@ -149,6 +157,7 @@ export function BarChart({ data }: { data: BarChartDatum[] }) {
               cy={p.y}
               r={hovered === i ? 4.5 : 3}
               className="pointer-events-none fill-accent transition-all"
+              style={{ animation: `fade-in-soft 0.4s ease-out ${data.length * 55 + 250 + i * 40}ms both` }}
             />
           ))}
         </svg>

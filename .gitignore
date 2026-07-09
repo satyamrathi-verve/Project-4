@@ -12,3 +12,6 @@ next-env.d.ts
 
 # NOTE: .env.local is intentionally NOT ignored in the per-team repos —
 # each team's Supabase URL + anon key are committed so `npm run dev` just works.
+
+# local-only env (NOT committed) — Anthropic API key for the AR chatbot lives here
+.env.development.local

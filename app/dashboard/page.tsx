@@ -9,6 +9,8 @@ import { DataTable, type Column } from "@/components/DataTable";
 import { inputClass } from "@/components/FormField";
 import { ScreenIcon } from "@/components/icons";
 import { LineChart, CHART_COLORS } from "@/components/LineChart";
+import { CountUp } from "@/components/CountUp";
+import { Reveal } from "@/components/Reveal";
 import { StatusPill, effectiveStatus, daysOverdue, type EffectiveStatus } from "@/components/StatusPill";
 import type { InvoiceStatus } from "@/lib/types";
 
@@ -356,20 +358,22 @@ export default function DashboardPage() {
       {isConfigured && !error && !loading && stats && (
         <>
           {/* KPI row */}
-          <div className="mb-8 grid grid-cols-2 gap-6 sm:grid-cols-3 lg:grid-cols-6 lg:gap-0 lg:divide-x lg:divide-slate-200 lg:dark:divide-slate-800">
+          <div className="mb-8 grid animate-fade-in-up grid-cols-2 gap-6 sm:grid-cols-3 lg:grid-cols-6 lg:gap-0 lg:divide-x lg:divide-slate-200 lg:dark:divide-slate-800">
             <KpiTile icon="customers" label="Customers" value={stats.totalCustomers} />
             <KpiTile icon="invoices" label="Invoices" value={stats.totalInvoices} />
             <KpiTile icon="ageing" label="Overdue" value={stats.overdueCount} tone={stats.overdueCount > 0 ? "warn" : "default"} />
-            <KpiTile icon="cashflow" label="Outstanding" value={inrCompact(stats.totalOutstanding)} tone="brand" />
-            <KpiTile icon="invoices" label="Billed (this mo.)" value={inrCompact(stats.billedThisMonth)} />
-            <KpiTile icon="receipts" label="Collected (this mo.)" value={inrCompact(stats.collectedThisMonth)} tone="good" />
+            <KpiTile icon="cashflow" label="Outstanding" value={stats.totalOutstanding} format={inrCompact} tone="brand" />
+            <KpiTile icon="invoices" label="Billed (this mo.)" value={stats.billedThisMonth} format={inrCompact} />
+            <KpiTile icon="receipts" label="Collected (this mo.)" value={stats.collectedThisMonth} format={inrCompact} tone="good" />
           </div>
 
           {/* DSO banner */}
-          <div className="mb-8 flex flex-col justify-between gap-4 rounded-xl border border-brand/20 bg-gradient-to-r from-brand-50 to-white p-5 dark:border-brand-400/20 dark:from-brand-900/20 dark:to-slate-900 sm:flex-row sm:items-center">
+          <div className="mb-8 flex animate-fade-in-up flex-col justify-between gap-4 rounded-xl border border-brand/20 bg-gradient-to-r from-brand-50 to-white p-5 dark:border-brand-400/20 dark:from-brand-900/20 dark:to-slate-900 sm:flex-row sm:items-center" style={{ animationDelay: "100ms" }}>
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-brand dark:text-brand-300">Days Sales Outstanding (DSO)</p>
-              <p className="mt-1 text-3xl font-bold text-brand dark:text-white">{stats.dso.toFixed(0)} days</p>
+              <p className="mt-1 text-3xl font-bold text-brand dark:text-white">
+                <CountUp value={stats.dso} format={(n) => n.toFixed(0)} /> days
+              </p>
               <p className="mt-1 max-w-md text-xs text-slate-500 dark:text-slate-400">
                 On average, how long it takes to collect payment after a sale — based on outstanding AR against the last 90 days of
                 invoicing. Lower is healthier.
@@ -379,7 +383,7 @@ export default function DashboardPage() {
           </div>
 
           {/* The four trend charts — two rows of two */}
-          <div className="grid gap-10 border-t border-slate-200 pt-8 dark:border-slate-800 lg:grid-cols-2">
+          <Reveal className="grid gap-10 border-t border-slate-200 pt-8 dark:border-slate-800 lg:grid-cols-2">
             <section>
               <h3 className="mb-1 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                 Sales vs Collections — last 6 months
@@ -440,10 +444,10 @@ export default function DashboardPage() {
                 ]}
               />
             </section>
-          </div>
+          </Reveal>
 
           {/* Sales by customer + overdue by customer */}
-          <div className="mt-8 grid gap-10 border-t border-slate-200 pt-8 dark:border-slate-800 lg:grid-cols-2">
+          <Reveal delay={80} className="mt-8 grid gap-10 border-t border-slate-200 pt-8 dark:border-slate-800 lg:grid-cols-2">
             <section>
               <h3 className="mb-1 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                 Sales by Customer — top 8
@@ -462,7 +466,10 @@ export default function DashboardPage() {
                         <span className="flex-none font-semibold tabular-nums text-slate-600 dark:text-slate-300">{inr.format(c.amount)}</span>
                       </div>
                       <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
-                        <div className="h-full rounded-full bg-brand dark:bg-brand-400" style={{ width: `${Math.max((c.amount / maxAmt) * 100, 2)}%` }} />
+                        <div
+                          className="h-full origin-left animate-grow-x rounded-full bg-brand dark:bg-brand-400"
+                          style={{ width: `${Math.max((c.amount / maxAmt) * 100, 2)}%`, animationDelay: `${i * 80}ms` }}
+                        />
                       </div>
                     </div>
                   );
@@ -483,10 +490,10 @@ export default function DashboardPage() {
                 <DataTable columns={overdueColumns} rows={stats.overdueByCustomer} searchable={false} empty="Nothing overdue." />
               )}
             </section>
-          </div>
+          </Reveal>
 
           {/* Status breakdown + top debtors */}
-          <div className="mt-8 grid gap-10 border-t border-slate-200 pt-8 dark:border-slate-800 lg:grid-cols-2">
+          <Reveal delay={80} className="mt-8 grid gap-10 border-t border-slate-200 pt-8 dark:border-slate-800 lg:grid-cols-2">
             <section>
               <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                 Invoice Status Breakdown
@@ -505,8 +512,8 @@ export default function DashboardPage() {
                       </div>
                       <div className="h-2.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
                         <div
-                          className={`h-full rounded-full transition-all ${STATUS_BAR[s]}`}
-                          style={{ width: `${stat.count > 0 ? Math.max(pct, 2) : 0}%` }}
+                          className={`h-full origin-left animate-grow-x rounded-full transition-all ${STATUS_BAR[s]}`}
+                          style={{ width: `${stat.count > 0 ? Math.max(pct, 2) : 0}%`, animationDelay: `${STATUS_ORDER.indexOf(s) * 80}ms` }}
                         />
                       </div>
                     </div>
@@ -540,7 +547,10 @@ export default function DashboardPage() {
                           <span className="flex-none font-semibold text-slate-600 dark:text-slate-300">{inr.format(d.outstanding)}</span>
                         </div>
                         <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
-                          <div className="h-full rounded-full bg-brand dark:bg-brand-400" style={{ width: `${Math.max(pct, 2)}%` }} />
+                          <div
+                            className="h-full origin-left animate-grow-x rounded-full bg-brand dark:bg-brand-400"
+                            style={{ width: `${Math.max(pct, 2)}%`, animationDelay: `${i * 80}ms` }}
+                          />
                         </div>
                       </div>
                     );
@@ -548,10 +558,10 @@ export default function DashboardPage() {
                 </div>
               )}
             </section>
-          </div>
+          </Reveal>
 
           {/* Recent invoices */}
-          <div className="mt-8 border-t border-slate-200 pt-8 dark:border-slate-800">
+          <Reveal className="mt-8 border-t border-slate-200 pt-8 dark:border-slate-800">
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
               <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Recent Invoices</h3>
               <select
@@ -567,7 +577,7 @@ export default function DashboardPage() {
               </select>
             </div>
             <DataTable columns={recentColumns} rows={visibleRecent} getRowHref={(r) => `/invoices/${r.id}`} empty="No invoices match this filter." />
-          </div>
+          </Reveal>
         </>
       )}
     </div>
@@ -578,11 +588,13 @@ function KpiTile({
   icon,
   label,
   value,
+  format,
   tone = "default",
 }: {
   icon: string;
   label: string;
-  value: string | number;
+  value: number;
+  format?: (n: number) => string;
   tone?: "default" | "brand" | "warn" | "good";
 }) {
   const iconWrap =
@@ -598,7 +610,9 @@ function KpiTile({
           <ScreenIcon name={icon} className="h-5 w-5" />
         </div>
         <div>
-          <p className="text-xl font-bold text-slate-900 dark:text-white">{value}</p>
+          <p className="text-xl font-bold tabular-nums text-slate-900 dark:text-white">
+            <CountUp value={value} format={format} />
+          </p>
           <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">{label}</p>
         </div>
       </div>

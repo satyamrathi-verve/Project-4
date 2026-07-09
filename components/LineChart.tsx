@@ -61,7 +61,60 @@ export function LineChart({
 }) {
   const isDark = useIsDark();
   const wrapRef = useRef<HTMLDivElement>(null);
+  const pathsRef = useRef<(SVGPathElement | null)[]>([]);
   const [hover, setHover] = useState<number | null>(null);
+  const [inView, setInView] = useState(false);
+
+  // Draw-on-view: once the chart scrolls into the viewport, each solid line
+  // "draws" itself left-to-right (stroke-dash trick); dashed overlays fade in
+  // instead (the dash pattern IS their data styling, so we can't dash-animate).
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    if (typeof IntersectionObserver === "undefined") {
+      setInView(true);
+      return;
+    }
+    const obs = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) {
+          if (e.isIntersecting) {
+            setInView(true);
+            obs.disconnect();
+          }
+        }
+      },
+      { threshold: 0.25 }
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (!inView) return;
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    pathsRef.current.forEach((p, i) => {
+      const s = series[i];
+      if (!p || !s) return;
+      if (s.dashed) {
+        p.style.transition = "none";
+        p.style.opacity = "0";
+        void p.getBoundingClientRect();
+        p.style.transition = reduce ? "none" : `opacity 0.6s ease-out ${0.45 + i * 0.18}s`;
+        p.style.opacity = "1";
+      } else {
+        const len = p.getTotalLength();
+        p.style.transition = "none";
+        p.style.opacity = "1";
+        p.style.strokeDasharray = `${len}`;
+        p.style.strokeDashoffset = reduce ? "0" : `${len}`;
+        void p.getBoundingClientRect();
+        p.style.transition = reduce ? "none" : `stroke-dashoffset 1.2s cubic-bezier(0.22, 1, 0.36, 1) ${i * 0.18}s`;
+        p.style.strokeDashoffset = "0";
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inView, series, isDark]);
 
   const innerW = W - PAD.left - PAD.right;
   const innerH = H - PAD.top - PAD.bottom;
@@ -148,9 +201,12 @@ export function LineChart({
           )}
 
           {/* series lines */}
-          {series.map((s) => (
+          {series.map((s, i) => (
             <path
               key={s.name}
+              ref={(el) => {
+                pathsRef.current[i] = el;
+              }}
               d={pathFor(s.values)}
               fill="none"
               stroke={isDark ? s.color.dark : s.color.light}
@@ -158,6 +214,7 @@ export function LineChart({
               strokeLinecap="round"
               strokeLinejoin="round"
               strokeDasharray={s.dashed ? "6 4" : undefined}
+              style={{ opacity: 0 }}
             />
           ))}
 
