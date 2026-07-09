@@ -196,6 +196,7 @@ export default function AgeingReportPage() {
   const [sortDir, setSortDir] = useState<SortDir>("desc");
 
   const [exportTemplate, setExportTemplate] = useState<ExportTemplate>("summary");
+  const [showPreview, setShowPreview] = useState(true);
 
   useEffect(() => {
     if (!supabase) return;
@@ -575,6 +576,9 @@ export default function AgeingReportPage() {
     doc.save(`ar-ageing-${exportTemplate}-${asOfDate}.pdf`);
   }
 
+  const previewTable = loaded && showPreview ? buildExportTable() : null;
+  const PREVIEW_ROWS = 5;
+
   return (
     <div className="mx-auto max-w-7xl">
       <div className="flex items-end justify-between gap-4 print:hidden">
@@ -588,6 +592,10 @@ export default function AgeingReportPage() {
                 ))}
               </select>
             </FormField>
+            <label className="flex items-center gap-1.5 pb-2.5 text-xs text-slate-500 dark:text-slate-400">
+              <input type="checkbox" checked={showPreview} onChange={(e) => setShowPreview(e.target.checked)} className="h-3.5 w-3.5 rounded border-slate-300 text-brand focus:ring-brand dark:border-slate-700" />
+              Preview
+            </label>
             <div ref={exportMenuRef} className="relative">
               <button
                 type="button"
@@ -633,9 +641,64 @@ export default function AgeingReportPage() {
           </div>
         )}
       </div>
-      <p className="-mt-4 mb-4 text-xs text-slate-400 dark:text-slate-500 print:hidden">
+      <p className="-mt-4 mb-2 text-xs text-slate-400 dark:text-slate-500 print:hidden">
         {EXPORT_TEMPLATES.find((t) => t.key === exportTemplate)?.hint}
       </p>
+
+      {previewTable && (
+        <div className="mb-4 overflow-x-auto rounded-xl border border-dashed border-brand/40 bg-brand-50/40 p-4 dark:border-brand-400/30 dark:bg-brand-900/10 print:hidden">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-brand dark:text-brand-300">
+              Preview — {EXPORT_TEMPLATES.find((t) => t.key === exportTemplate)?.label}
+            </p>
+            <p className="text-xs text-slate-400 dark:text-slate-500">
+              {previewTable.rows.length} row{previewTable.rows.length === 1 ? "" : "s"} will be exported
+            </p>
+          </div>
+          {previewTable.rows.length === 0 ? (
+            <p className="py-4 text-center text-xs text-slate-400 dark:text-slate-500">Nothing to export with the current filters.</p>
+          ) : (
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-slate-200 text-left dark:border-slate-700">
+                  {previewTable.columns.map((c) => (
+                    <th key={c.header} className={`whitespace-nowrap px-2 py-1.5 font-semibold text-slate-600 dark:text-slate-300 ${c.type !== "text" ? "text-right" : ""}`}>
+                      {c.header}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {previewTable.rows.slice(0, PREVIEW_ROWS).map((row, ri) => (
+                  <tr key={ri} className="border-b border-slate-100 last:border-0 dark:border-slate-800">
+                    {row.map((v, ci) => (
+                      <td key={ci} className={`whitespace-nowrap px-2 py-1.5 text-slate-700 dark:text-slate-300 ${previewTable.columns[ci].type !== "text" ? "text-right" : ""}`}>
+                        {previewTable.columns[ci].type === "currency" ? formatCurrency(Number(v)) : String(v)}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+                {previewTable.rows.length > PREVIEW_ROWS && (
+                  <tr>
+                    <td colSpan={previewTable.columns.length} className="px-2 py-1.5 text-center text-slate-400 dark:text-slate-500">
+                      … and {previewTable.rows.length - PREVIEW_ROWS} more row{previewTable.rows.length - PREVIEW_ROWS === 1 ? "" : "s"}
+                    </td>
+                  </tr>
+                )}
+                {previewTable.footer && (
+                  <tr className="bg-white/60 font-semibold dark:bg-slate-900/40">
+                    {previewTable.footer.map((v, ci) => (
+                      <td key={ci} className={`whitespace-nowrap px-2 py-1.5 text-slate-800 dark:text-slate-100 ${previewTable.columns[ci].type !== "text" ? "text-right" : ""}`}>
+                        {previewTable.columns[ci].type === "currency" ? formatCurrency(Number(v)) : String(v)}
+                      </td>
+                    ))}
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
 
       {/* Print-only header, since the app chrome is hidden when printing */}
       <div className="mb-4 hidden print:block">
