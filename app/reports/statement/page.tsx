@@ -376,7 +376,10 @@ export default function CustomerStatementPage() {
 
   const isAmountDue = closingBalance > 0.005;
   const balanceLabel = isAmountDue ? "Amount Due" : "Credit Balance";
-  const balanceColorClass = isAmountDue ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400";
+  // Professional palette: red is reserved strictly for the overdue badge in
+  // the ledger — amount due reads as amber (attention, not alarm), settled/
+  // credit balances read as teal, matching "received" amounts elsewhere.
+  const balanceColorClass = isAmountDue ? "text-amber-600 dark:text-amber-400" : "text-teal-600 dark:text-teal-400";
 
   // Outstanding Aging — due-date based (Current = not yet due; then 1–30 /
   // 31–60 / 61–90 / 90+ days past due), the same bucketing the AR Ageing
@@ -714,9 +717,9 @@ export default function CustomerStatementPage() {
                 <StatDivider />
                 <Stat label="Opening Balance" value={formatCurrency(rangeOpeningBalance)} valueClassName="text-slate-800 dark:text-slate-100" />
                 <StatDivider />
-                <Stat label="Total Debits (Invoiced)" value={formatCurrency(totalDebit)} valueClassName="text-slate-800 dark:text-slate-100" />
+                <Stat label="Total Debits (Invoiced)" value={formatCurrency(totalDebit)} valueClassName="text-blue-600 dark:text-blue-400" />
                 <StatDivider />
-                <Stat label="Total Credits (Received)" value={formatCurrency(totalCredit)} valueClassName="text-slate-800 dark:text-slate-100" />
+                <Stat label="Total Credits (Received)" value={formatCurrency(totalCredit)} valueClassName="text-teal-600 dark:text-teal-400" />
                 <StatDivider />
                 <Stat label={balanceLabel} value={formatCurrency(closingBalance)} valueClassName={balanceColorClass} />
               </div>
@@ -742,13 +745,15 @@ export default function CustomerStatementPage() {
                 <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
                   <Stat label="Current" value={formatCurrency(aging.current)} valueClassName="text-slate-800 dark:text-slate-100" />
                   <StatDivider />
-                  <Stat label="1–30 days" value={formatCurrency(aging.d1_30)} valueClassName="text-amber-600 dark:text-amber-400" />
+                  {/* Red is reserved strictly for the overdue badge in the ledger below —
+                      aging buckets escalate within amber only, to keep the page calm. */}
+                  <Stat label="1–30 days" value={formatCurrency(aging.d1_30)} valueClassName="text-amber-500 dark:text-amber-400" />
                   <StatDivider />
-                  <Stat label="31–60 days" value={formatCurrency(aging.d31_60)} valueClassName="text-orange-600 dark:text-orange-400" />
+                  <Stat label="31–60 days" value={formatCurrency(aging.d31_60)} valueClassName="text-amber-600 dark:text-amber-400" />
                   <StatDivider />
-                  <Stat label="61–90 days" value={formatCurrency(aging.d61_90)} valueClassName="text-red-600 dark:text-red-400" />
+                  <Stat label="61–90 days" value={formatCurrency(aging.d61_90)} valueClassName="text-amber-700 dark:text-amber-300" />
                   <StatDivider />
-                  <Stat label="90+ days" value={formatCurrency(aging.d90plus)} valueClassName="text-red-700 dark:text-red-500" />
+                  <Stat label="90+ days" value={formatCurrency(aging.d90plus)} valueClassName="text-amber-800 dark:text-amber-300" />
                 </div>
               </div>
 
@@ -804,7 +809,7 @@ export default function CustomerStatementPage() {
                                 }
                               }}
                               className={`cursor-pointer border-b border-slate-100 last:border-0 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800/50 dark:print:border-slate-100 ${
-                                r.kind === "receipt" ? "bg-emerald-50/40 dark:bg-emerald-900/10" : ""
+                                r.kind === "receipt" ? "bg-teal-50/40 dark:bg-teal-900/10" : ""
                               }`}
                             >
                               <td className="whitespace-nowrap px-4 py-3 text-slate-700 dark:text-slate-300 dark:print:text-slate-700">{formatDate(r.date)}</td>
@@ -832,10 +837,10 @@ export default function CustomerStatementPage() {
                                   {r.reference}
                                 </span>
                               </td>
-                              <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums text-slate-700 dark:text-slate-300 dark:print:text-slate-700">
+                              <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums text-blue-700 dark:text-blue-400 dark:print:text-slate-700">
                                 {r.debit > 0 ? formatCurrency(r.debit) : "–"}
                               </td>
-                              <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums text-emerald-700 dark:text-emerald-400 dark:print:text-slate-700">
+                              <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums text-teal-700 dark:text-teal-400 dark:print:text-slate-700">
                                 {r.credit > 0 ? formatCurrency(r.credit) : "–"}
                               </td>
                               <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums font-medium text-slate-700 dark:text-slate-300 dark:print:text-slate-700">
