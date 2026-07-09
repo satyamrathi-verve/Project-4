@@ -201,6 +201,19 @@ function csvCell(v: string | number) {
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
+function Stat({ label, value, valueClassName }: { label: string; value: string; valueClassName: string }) {
+  return (
+    <div>
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{label}</p>
+      <p className={`text-base font-bold ${valueClassName}`}>{value}</p>
+    </div>
+  );
+}
+
+function StatDivider() {
+  return <span className="hidden h-8 w-px bg-slate-200 dark:bg-slate-800 sm:block" />;
+}
+
 export default function AgeingReportPage() {
   const [customers, setCustomers] = useState<Customer[] | null>(null);
   const [invoices, setInvoices] = useState<Invoice[] | null>(null);
@@ -228,12 +241,15 @@ export default function AgeingReportPage() {
 
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement>(null);
+  const [emailMenuOpen, setEmailMenuOpen] = useState(false);
+  const emailMenuRef = useRef<HTMLDivElement>(null);
+  const [showFiltersPanel, setShowFiltersPanel] = useState(false);
 
   const [sortKey, setSortKey] = useState<SortKey>("total");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
 
   const [exportTemplate, setExportTemplate] = useState<ExportTemplate>("summary");
-  const [showPreview, setShowPreview] = useState(true);
+  const [showPreview, setShowPreview] = useState(false);
 
   const [reminderTemplates, setReminderTemplates] = useState<ReminderTemplate[] | null>(null);
   const [reportCadence, setReportCadence] = useState<"One-time" | "Weekly" | "Monthly">("Weekly");
@@ -270,6 +286,15 @@ export default function AgeingReportPage() {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [exportMenuOpen]);
+
+  useEffect(() => {
+    if (!emailMenuOpen) return;
+    function handleClickOutside(e: MouseEvent) {
+      if (emailMenuRef.current && !emailMenuRef.current.contains(e.target as Node)) setEmailMenuOpen(false);
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [emailMenuOpen]);
 
   const loaded = customers && invoices && receipts && allocations && reminderTemplates;
 
@@ -498,9 +523,18 @@ export default function AgeingReportPage() {
   const asOfPreset =
     (Object.entries(presetDates).find(([, v]) => v === asOfDate)?.[0] as keyof typeof presetDates | undefined) ?? "custom";
   const creditLimitColLabel = overrideLimit !== null ? "Credit Limit (override)" : "Credit Limit";
-  const filtersActive =
-    search !== "" || locationFilter !== "all" || bucketFilter !== "all" || minOutstanding !== "" ||
-    overdueOnly || overLimitOnly || creditLimitOverride !== "" || priorityFilter !== "all" || asOfDate !== todayISO();
+  const activeFilterCount = [
+    search !== "",
+    locationFilter !== "all",
+    bucketFilter !== "all",
+    minOutstanding !== "",
+    overdueOnly,
+    overLimitOnly,
+    creditLimitOverride !== "",
+    priorityFilter !== "all",
+    asOfDate !== todayISO(),
+  ].filter(Boolean).length;
+  const filtersActive = activeFilterCount > 0;
 
   // ---- export: one shared table builder feeding CSV / Excel / PDF -----------
 
@@ -700,21 +734,27 @@ export default function AgeingReportPage() {
 
   return (
     <div className="mx-auto max-w-7xl">
-      <div className="flex items-end justify-between gap-4 print:hidden">
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-4 print:hidden">
         <PageHeader title="AR Ageing Report" subtitle={`Outstanding by age bucket, as of ${asOfLabel}`} />
         {isConfigured && summaryRows.length > 0 && (
-          <div className="mb-6 flex flex-none flex-wrap items-end justify-end gap-2">
-            <FormField label="Export template">
-              <select className={inputClass} value={exportTemplate} onChange={(e) => setExportTemplate(e.target.value as ExportTemplate)}>
-                {EXPORT_TEMPLATES.map((t) => (
-                  <option key={t.key} value={t.key}>{t.label}</option>
-                ))}
-              </select>
-            </FormField>
-            <label className="flex items-center gap-1.5 pb-2.5 text-xs text-slate-500 dark:text-slate-400">
-              <input type="checkbox" checked={showPreview} onChange={(e) => setShowPreview(e.target.checked)} className="h-3.5 w-3.5 rounded border-slate-300 text-brand focus:ring-brand dark:border-slate-700" />
-              Preview
-            </label>
+          <div className="flex flex-none flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowFiltersPanel((o) => !o)}
+              className={`flex items-center gap-1.5 rounded-lg border px-4 py-2 text-sm font-semibold transition-all duration-200 active:scale-95 ${
+                showFiltersPanel
+                  ? "border-brand bg-brand text-white"
+                  : "border-slate-300 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+              }`}
+            >
+              Filters
+              {activeFilterCount > 0 && (
+                <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${showFiltersPanel ? "bg-white/25" : "bg-brand text-white"}`}>
+                  {activeFilterCount}
+                </span>
+              )}
+            </button>
+
             <div ref={exportMenuRef} className="relative">
               <button
                 type="button"
@@ -731,8 +771,26 @@ export default function AgeingReportPage() {
               {exportMenuOpen && (
                 <div
                   role="menu"
-                  className="absolute right-0 z-10 mt-1 w-40 overflow-hidden rounded-lg border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-900"
+                  className="absolute right-0 z-10 mt-1 w-56 overflow-hidden rounded-lg border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-900"
                 >
+                  <div className="px-3 py-2">
+                    <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Template</label>
+                    <select
+                      className={`${inputClass} mt-1 w-full text-xs`}
+                      value={exportTemplate}
+                      onChange={(e) => setExportTemplate(e.target.value as ExportTemplate)}
+                    >
+                      {EXPORT_TEMPLATES.map((t) => (
+                        <option key={t.key} value={t.key}>{t.label}</option>
+                      ))}
+                    </select>
+                    <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">{EXPORT_TEMPLATES.find((t) => t.key === exportTemplate)?.hint}</p>
+                  </div>
+                  <label className="flex items-center gap-2 px-3 py-2 text-xs text-slate-600 dark:text-slate-300">
+                    <input type="checkbox" checked={showPreview} onChange={(e) => setShowPreview(e.target.checked)} className="h-3.5 w-3.5 rounded border-slate-300 text-brand focus:ring-brand dark:border-slate-700" />
+                    Show preview on page
+                  </label>
+                  <div className="my-1 border-t border-slate-100 dark:border-slate-800" />
                   {[
                     { label: "CSV", action: exportCsv },
                     { label: "Excel (.xlsx)", action: exportXlsx },
@@ -748,41 +806,59 @@ export default function AgeingReportPage() {
                       }}
                       className="block w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800"
                     >
-                      {item.label}
+                      Download as {item.label}
                     </button>
                   ))}
                 </div>
               )}
             </div>
-            <button type="button" onClick={() => window.print()} className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white transition-all duration-200 hover:bg-brand-700 active:scale-95">
+
+            <button type="button" onClick={() => window.print()} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-600 transition-all duration-200 hover:bg-slate-50 active:scale-95 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">
               Print
             </button>
-            <FormField label="Cadence">
-              <select className={inputClass} value={reportCadence} onChange={(e) => setReportCadence(e.target.value as typeof reportCadence)}>
-                <option value="One-time">One-time</option>
-                <option value="Weekly">Weekly</option>
-                <option value="Monthly">Monthly</option>
-              </select>
-            </FormField>
-            <button
-              type="button"
-              onClick={() => setEmailTarget({ kind: "report" })}
-              className="rounded-lg border border-brand px-4 py-2 text-sm font-semibold text-brand transition-all duration-200 hover:bg-brand-50 active:scale-95 dark:border-brand-300 dark:text-brand-300 dark:hover:bg-brand-900/30"
-            >
-              Email Report to Manager
-            </button>
+
+            <div ref={emailMenuRef} className="relative">
+              <button
+                type="button"
+                onClick={() => setEmailMenuOpen((o) => !o)}
+                aria-expanded={emailMenuOpen}
+                aria-haspopup="menu"
+                className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white transition-all duration-200 hover:bg-brand-700 active:scale-95"
+              >
+                Email Report
+                <svg className={`h-3.5 w-3.5 transition-transform duration-200 ${emailMenuOpen ? "rotate-180" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+              </button>
+              {emailMenuOpen && (
+                <div
+                  role="menu"
+                  className="absolute right-0 z-10 mt-1 w-56 overflow-hidden rounded-lg border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-900"
+                >
+                  <p className="px-3 py-2 text-[11px] text-slate-400 dark:text-slate-500">
+                    Opens a draft in your mail app — nothing sends automatically, so re-run this each time it&apos;s due.
+                  </p>
+                  {(["One-time", "Weekly", "Monthly"] as const).map((cadence) => (
+                    <button
+                      key={cadence}
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        setReportCadence(cadence);
+                        setEmailTarget({ kind: "report" });
+                        setEmailMenuOpen(false);
+                      }}
+                      className="block w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800"
+                    >
+                      {cadence} report to manager
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>
-      {reportCadence !== "One-time" && (
-        <p className="-mt-4 mb-2 text-xs text-slate-400 dark:text-slate-500 print:hidden">
-          &ldquo;{reportCadence}&rdquo; only sets the subject line — there&apos;s no backend here to send this automatically on a
-          schedule, so re-run this each {reportCadence === "Weekly" ? "week" : "month"} when it&apos;s due.
-        </p>
-      )}
-      <p className="-mt-4 mb-2 text-xs text-slate-400 dark:text-slate-500 print:hidden">
-        {EXPORT_TEMPLATES.find((t) => t.key === exportTemplate)?.hint}
-      </p>
 
       {previewTable && (
         <div className="mb-4 overflow-x-auto rounded-xl border border-dashed border-brand/40 bg-brand-50/40 p-4 dark:border-brand-400/30 dark:bg-brand-900/10 print:hidden">
@@ -860,168 +936,186 @@ export default function AgeingReportPage() {
 
       {isConfigured && !error && loaded && (
         <>
-          {/* KPI tiles */}
-          <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-6 print:hidden">
-            <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Total Outstanding</p>
-              <p className="mt-1 text-xl font-bold text-brand dark:text-brand-300">{formatCurrency(grandTotal.total)}</p>
-            </div>
-            <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Overdue</p>
-              <p className="mt-1 text-xl font-bold text-red-600 dark:text-red-400">{formatCurrency(grandTotal.total - grandTotal.notDue)}</p>
-            </div>
-            <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Not Due</p>
-              <p className="mt-1 text-xl font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(grandTotal.notDue)}</p>
-            </div>
-            <div className="rounded-xl border border-red-200 bg-red-50 p-4 dark:border-red-500/30 dark:bg-red-950/30">
-              <p className="text-xs font-semibold uppercase tracking-wide text-red-600 dark:text-red-400">Needs Attention</p>
-              <p className="mt-1 text-xl font-bold text-red-700 dark:text-red-300">{highPriorityCount} customer{highPriorityCount === 1 ? "" : "s"}</p>
-            </div>
-            <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Over Credit Limit</p>
-              <p className="mt-1 text-xl font-bold text-amber-600 dark:text-amber-400">{overLimitCount} customer{overLimitCount === 1 ? "" : "s"}</p>
-            </div>
-            <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">DSO (trailing 90d)</p>
-              <p className="mt-1 text-xl font-bold text-slate-800 dark:text-slate-100">{dso === null ? "N/A" : `${dso.toFixed(0)} days`}</p>
-            </div>
+          {/* KPI strip */}
+          <div className="mb-4 flex flex-wrap items-center gap-x-6 gap-y-3 rounded-xl border border-slate-200 bg-white px-5 py-3 dark:border-slate-800 dark:bg-slate-900 print:hidden">
+            <Stat label="Total Outstanding" value={formatCurrency(grandTotal.total)} valueClassName="text-brand dark:text-brand-300" />
+            <StatDivider />
+            <Stat label="Overdue" value={formatCurrency(grandTotal.total - grandTotal.notDue)} valueClassName="text-red-600 dark:text-red-400" />
+            <StatDivider />
+            <Stat label="Not Due" value={formatCurrency(grandTotal.notDue)} valueClassName="text-emerald-600 dark:text-emerald-400" />
+            <StatDivider />
+            <Stat
+              label="Needs Attention"
+              value={`${highPriorityCount} customer${highPriorityCount === 1 ? "" : "s"}`}
+              valueClassName="text-red-700 dark:text-red-300"
+            />
+            <StatDivider />
+            <Stat
+              label="Over Credit Limit"
+              value={`${overLimitCount} customer${overLimitCount === 1 ? "" : "s"}`}
+              valueClassName="text-amber-600 dark:text-amber-400"
+            />
+            <StatDivider />
+            <Stat label="DSO (trailing 90d)" value={dso === null ? "N/A" : `${dso.toFixed(0)} days`} valueClassName="text-slate-800 dark:text-slate-100" />
           </div>
 
-          {/* Filters */}
-          <div className="mb-3 grid gap-3 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900 print:hidden sm:grid-cols-2 lg:grid-cols-6">
-            <FormField label="As of — quick pick">
-              <select
-                className={inputClass}
-                value={asOfPreset}
-                onChange={(e) => {
-                  const key = e.target.value as keyof typeof presetDates | "custom";
-                  if (key !== "custom") setAsOfDate(presetDates[key]);
-                }}
-              >
-                <option value="today">Today ({formatShortDate(presetDates.today)})</option>
-                <option value="lastMonth">End of Last Month ({formatShortDate(presetDates.lastMonth)})</option>
-                <option value="lastQuarter">End of Last Quarter ({formatShortDate(presetDates.lastQuarter)})</option>
-                <option value="lastYear">End of Last Financial Year ({formatShortDate(presetDates.lastYear)})</option>
-                <option value="custom">Custom date…</option>
-              </select>
-            </FormField>
-            <FormField label="As of date">
-              <input
-                type="date"
-                className={inputClass}
-                value={asOfDate}
-                max={todayISO()}
-                onChange={(e) => setAsOfDate(e.target.value || todayISO())}
-              />
-            </FormField>
-            <FormField label="Customer">
-              <input
-                type="text"
-                className={inputClass}
-                placeholder="Search name or code…"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
-            </FormField>
-            <FormField label="Location">
-              <select className={inputClass} value={locationFilter} onChange={(e) => setLocationFilter(e.target.value)}>
-                <option value="all">All locations</option>
-                {locations.map((l) => (
-                  <option key={l} value={l}>{l}</option>
-                ))}
-              </select>
-            </FormField>
-            <FormField label="Bucket">
-              <select className={inputClass} value={bucketFilter} onChange={(e) => setBucketFilter(e.target.value as "all" | Bucket)}>
-                <option value="all">All buckets</option>
-                {BUCKET_COLS.map((b) => (
-                  <option key={b.key} value={b.key}>{b.header}</option>
-                ))}
-              </select>
-            </FormField>
-            <FormField label="Min. outstanding (₹)">
-              <input
-                type="number"
-                min="0"
-                className={inputClass}
-                placeholder="0"
-                value={minOutstanding}
-                onChange={(e) => setMinOutstanding(e.target.value)}
-              />
-            </FormField>
-            <FormField label="Priority">
-              <select className={inputClass} value={priorityFilter} onChange={(e) => setPriorityFilter(e.target.value as "all" | Priority)}>
-                <option value="all">All priorities</option>
-                <option value="High">High — needs attention</option>
-                <option value="Medium">Medium</option>
-                <option value="Low">Low</option>
-              </select>
-            </FormField>
-            <FormField label="Credit limit override (₹)">
-              <input
-                type="number"
-                min="0"
-                className={inputClass}
-                placeholder="Use each customer's own limit"
-                value={creditLimitOverride}
-                onChange={(e) => setCreditLimitOverride(e.target.value)}
-              />
-            </FormField>
-            <div className="flex items-end">
-              <button
-                type="button"
-                onClick={resetFilters}
-                disabled={!filtersActive}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
-              >
-                Reset filters
-              </button>
-            </div>
+          {/* Filters & columns — collapsed by default to keep the page uncluttered */}
+          <div className="mb-4 rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 print:hidden">
+            <button
+              type="button"
+              onClick={() => setShowFiltersPanel((o) => !o)}
+              className="flex w-full items-center justify-between px-4 py-3 text-left"
+            >
+              <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                Filters &amp; columns
+                {activeFilterCount > 0 && (
+                  <span className="ml-2 text-xs font-normal text-slate-400 dark:text-slate-500">
+                    {activeFilterCount} filter{activeFilterCount === 1 ? "" : "s"} active
+                  </span>
+                )}
+              </span>
+              <svg className={`h-4 w-4 flex-none text-slate-400 transition-transform duration-200 ${showFiltersPanel ? "rotate-180" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </button>
 
-            <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
-              <input type="checkbox" checked={overdueOnly} onChange={(e) => setOverdueOnly(e.target.checked)} className="h-4 w-4 rounded border-slate-300 text-brand focus:ring-brand dark:border-slate-700" />
-              Overdue only
-            </label>
-            <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
-              <input type="checkbox" checked={overLimitOnly} onChange={(e) => setOverLimitOnly(e.target.checked)} className="h-4 w-4 rounded border-slate-300 text-brand focus:ring-brand dark:border-slate-700" />
-              Over credit limit only
-              {overrideLimit !== null && (
-                <span className="text-xs text-slate-400 dark:text-slate-500">(using {formatCurrency(overrideLimit)} for everyone)</span>
-              )}
-            </label>
-          </div>
+            {showFiltersPanel && (
+              <div className="border-t border-slate-100 p-4 dark:border-slate-800">
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
+                  <FormField label="As of — quick pick">
+                    <select
+                      className={inputClass}
+                      value={asOfPreset}
+                      onChange={(e) => {
+                        const key = e.target.value as keyof typeof presetDates | "custom";
+                        if (key !== "custom") setAsOfDate(presetDates[key]);
+                      }}
+                    >
+                      <option value="today">Today ({formatShortDate(presetDates.today)})</option>
+                      <option value="lastMonth">End of Last Month ({formatShortDate(presetDates.lastMonth)})</option>
+                      <option value="lastQuarter">End of Last Quarter ({formatShortDate(presetDates.lastQuarter)})</option>
+                      <option value="lastYear">End of Last Financial Year ({formatShortDate(presetDates.lastYear)})</option>
+                      <option value="custom">Custom date…</option>
+                    </select>
+                  </FormField>
+                  <FormField label="As of date">
+                    <input
+                      type="date"
+                      className={inputClass}
+                      value={asOfDate}
+                      max={todayISO()}
+                      onChange={(e) => setAsOfDate(e.target.value || todayISO())}
+                    />
+                  </FormField>
+                  <FormField label="Customer">
+                    <input
+                      type="text"
+                      className={inputClass}
+                      placeholder="Search name or code…"
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                    />
+                  </FormField>
+                  <FormField label="Location">
+                    <select className={inputClass} value={locationFilter} onChange={(e) => setLocationFilter(e.target.value)}>
+                      <option value="all">All locations</option>
+                      {locations.map((l) => (
+                        <option key={l} value={l}>{l}</option>
+                      ))}
+                    </select>
+                  </FormField>
+                  <FormField label="Bucket">
+                    <select className={inputClass} value={bucketFilter} onChange={(e) => setBucketFilter(e.target.value as "all" | Bucket)}>
+                      <option value="all">All buckets</option>
+                      {BUCKET_COLS.map((b) => (
+                        <option key={b.key} value={b.key}>{b.header}</option>
+                      ))}
+                    </select>
+                  </FormField>
+                  <FormField label="Min. outstanding (₹)">
+                    <input
+                      type="number"
+                      min="0"
+                      className={inputClass}
+                      placeholder="0"
+                      value={minOutstanding}
+                      onChange={(e) => setMinOutstanding(e.target.value)}
+                    />
+                  </FormField>
+                  <FormField label="Priority">
+                    <select className={inputClass} value={priorityFilter} onChange={(e) => setPriorityFilter(e.target.value as "all" | Priority)}>
+                      <option value="all">All priorities</option>
+                      <option value="High">High — needs attention</option>
+                      <option value="Medium">Medium</option>
+                      <option value="Low">Low</option>
+                    </select>
+                  </FormField>
+                  <FormField label="Credit limit override (₹)">
+                    <input
+                      type="number"
+                      min="0"
+                      className={inputClass}
+                      placeholder="Use each customer's own limit"
+                      value={creditLimitOverride}
+                      onChange={(e) => setCreditLimitOverride(e.target.value)}
+                    />
+                  </FormField>
+                  <div className="flex items-end">
+                    <button
+                      type="button"
+                      onClick={resetFilters}
+                      disabled={!filtersActive}
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                    >
+                      Reset filters
+                    </button>
+                  </div>
 
-          {/* Column customizer */}
-          <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm dark:border-slate-800 dark:bg-slate-900 print:hidden">
-            <span className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Columns:</span>
-            {BUCKET_COLS.map((b) => (
-              <label key={b.key} className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
-                <input
-                  type="checkbox"
-                  checked={visibleBuckets[b.key]}
-                  onChange={(e) => setVisibleBuckets((v) => ({ ...v, [b.key]: e.target.checked }))}
-                  className="h-3.5 w-3.5 rounded border-slate-300 text-brand focus:ring-brand dark:border-slate-700"
-                />
-                {b.header}
-              </label>
-            ))}
-            <label className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
-              <input type="checkbox" checked={showLocationCol} onChange={(e) => setShowLocationCol(e.target.checked)} className="h-3.5 w-3.5 rounded border-slate-300 text-brand focus:ring-brand dark:border-slate-700" />
-              Location
-            </label>
-            <label className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
-              <input type="checkbox" checked={showCreditLimitCol} onChange={(e) => setShowCreditLimitCol(e.target.checked)} className="h-3.5 w-3.5 rounded border-slate-300 text-brand focus:ring-brand dark:border-slate-700" />
-              Credit Limit
-            </label>
-            <label className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
-              <input type="checkbox" checked={showOldestOverdueCol} onChange={(e) => setShowOldestOverdueCol(e.target.checked)} className="h-3.5 w-3.5 rounded border-slate-300 text-brand focus:ring-brand dark:border-slate-700" />
-              Oldest Overdue
-            </label>
-            <label className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
-              <input type="checkbox" checked={showPriorityCol} onChange={(e) => setShowPriorityCol(e.target.checked)} className="h-3.5 w-3.5 rounded border-slate-300 text-brand focus:ring-brand dark:border-slate-700" />
-              Priority
-            </label>
+                  <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
+                    <input type="checkbox" checked={overdueOnly} onChange={(e) => setOverdueOnly(e.target.checked)} className="h-4 w-4 rounded border-slate-300 text-brand focus:ring-brand dark:border-slate-700" />
+                    Overdue only
+                  </label>
+                  <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
+                    <input type="checkbox" checked={overLimitOnly} onChange={(e) => setOverLimitOnly(e.target.checked)} className="h-4 w-4 rounded border-slate-300 text-brand focus:ring-brand dark:border-slate-700" />
+                    Over credit limit only
+                    {overrideLimit !== null && (
+                      <span className="text-xs text-slate-400 dark:text-slate-500">(using {formatCurrency(overrideLimit)} for everyone)</span>
+                    )}
+                  </label>
+                </div>
+
+                <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-slate-100 pt-4 text-sm dark:border-slate-800">
+                  <span className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Columns:</span>
+                  {BUCKET_COLS.map((b) => (
+                    <label key={b.key} className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
+                      <input
+                        type="checkbox"
+                        checked={visibleBuckets[b.key]}
+                        onChange={(e) => setVisibleBuckets((v) => ({ ...v, [b.key]: e.target.checked }))}
+                        className="h-3.5 w-3.5 rounded border-slate-300 text-brand focus:ring-brand dark:border-slate-700"
+                      />
+                      {b.header}
+                    </label>
+                  ))}
+                  <label className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
+                    <input type="checkbox" checked={showLocationCol} onChange={(e) => setShowLocationCol(e.target.checked)} className="h-3.5 w-3.5 rounded border-slate-300 text-brand focus:ring-brand dark:border-slate-700" />
+                    Location
+                  </label>
+                  <label className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
+                    <input type="checkbox" checked={showCreditLimitCol} onChange={(e) => setShowCreditLimitCol(e.target.checked)} className="h-3.5 w-3.5 rounded border-slate-300 text-brand focus:ring-brand dark:border-slate-700" />
+                    Credit Limit
+                  </label>
+                  <label className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
+                    <input type="checkbox" checked={showOldestOverdueCol} onChange={(e) => setShowOldestOverdueCol(e.target.checked)} className="h-3.5 w-3.5 rounded border-slate-300 text-brand focus:ring-brand dark:border-slate-700" />
+                    Oldest Overdue
+                  </label>
+                  <label className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
+                    <input type="checkbox" checked={showPriorityCol} onChange={(e) => setShowPriorityCol(e.target.checked)} className="h-3.5 w-3.5 rounded border-slate-300 text-brand focus:ring-brand dark:border-slate-700" />
+                    Priority
+                  </label>
+                </div>
+              </div>
+            )}
           </div>
 
           <p className="mb-2 text-xs text-slate-400 dark:text-slate-500 print:hidden">
