@@ -18,7 +18,7 @@ const LINKS: { href: string; label: string; built: boolean; icon: string }[] = [
   { href: "/invoices", label: "Sales Invoices", built: true, icon: "invoices" },
   { href: "/receipts", label: "Receipt Entry", built: false, icon: "receipts" },
   { href: "/upload", label: "Upload Report", built: true, icon: "upload" },
-  { href: "/reminders", label: "AR Followup", built: false, icon: "reminders" },
+  { href: "/reminders", label: "AR Followup", built: true, icon: "reminders" },
   { href: "/reports/statement", label: "Customer Statement", built: true, icon: "statement" },
   { href: "/reports/ageing", label: "AR Ageing", built: true, icon: "ageing" },
   { href: "/cashflow", label: "Cashflow Projection", built: true, icon: "cashflow" },
