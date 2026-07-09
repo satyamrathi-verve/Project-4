@@ -58,6 +58,23 @@ export function AskAria() {
     if (open) setTimeout(() => inputRef.current?.focus(), 320);
   }, [open]);
 
+  // Press "/" anywhere to open Aria; Escape closes her.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        setOpen(false);
+        return;
+      }
+      if (e.key !== "/" || e.ctrlKey || e.metaKey || e.altKey) return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)) return;
+      e.preventDefault();
+      setOpen(true);
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   async function ask(question: string) {
     const q = question.trim();
     if (!q || busy) return;
@@ -232,7 +249,8 @@ export function AskAria() {
             </button>
           </form>
           <p className="mt-2 text-center text-[10px] text-slate-400 dark:text-slate-500">
-            Aria answers from your live books — instant, offline-safe, always in sync with the dashboard.
+            Aria answers from your live books — instant and always in sync. Press{" "}
+            <kbd className="rounded border border-slate-300 px-1 font-sans dark:border-slate-600">/</kbd> anywhere to open me.
           </p>
         </div>
       </div>

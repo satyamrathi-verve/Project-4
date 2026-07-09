@@ -57,6 +57,10 @@ body {
 }
 
 @media (prefers-reduced-motion: no-preference) {
+  /* soft cross-fade when navigating between screens */
+  main.route-fade {
+    animation: fade-in-soft 0.3s ease-out;
+  }
   /* SVG bars grow up from the baseline (BarChart) */
   svg .bar-grow {
     transform-box: fill-box;

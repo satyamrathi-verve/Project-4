@@ -419,6 +419,31 @@ export default function ReceiptEntryPage() {
           )}
         </div>
 
+        {customerId && invoices.length > 0 && amountNum > 0 && (
+          <div className="mb-3">
+            <div className="mb-1.5 flex items-center justify-between text-xs tabular-nums">
+              <span className="text-slate-500 dark:text-slate-400">
+                Allocated ₹{money(allocatedTotal)} of ₹{money(amountNum)}
+              </span>
+              {overAllocated ? (
+                <span className="font-semibold text-red-600 dark:text-red-400">
+                  over-allocated by ₹{money(round2(allocatedTotal - amountNum))}
+                </span>
+              ) : unallocated > 0 ? (
+                <span className="text-slate-400 dark:text-slate-500">₹{money(unallocated)} unallocated</span>
+              ) : (
+                <span className="text-emerald-600 dark:text-emerald-400">fully allocated ✓</span>
+              )}
+            </div>
+            <div className="h-2.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+              <div
+                className={`h-full rounded-full transition-all duration-300 ${overAllocated ? "bg-red-500" : "bg-emerald-500"}`}
+                style={{ width: `${amountNum > 0 ? Math.min(100, (allocatedTotal / amountNum) * 100) : 0}%` }}
+              />
+            </div>
+          </div>
+        )}
+
         {!customerId ? (
           <div className="rounded-xl border border-dashed border-slate-300 bg-white p-10 text-center text-sm text-slate-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-500">
             Pick a customer to see their open and partial invoices.

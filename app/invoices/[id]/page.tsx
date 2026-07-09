@@ -4,7 +4,6 @@ import { Fragment, useEffect, useRef, useState } from "react";
 import { supabase, isConfigured } from "@/lib/supabase";
 import type { Company, Customer, Invoice, InvoiceItem, Receipt, ReceiptAllocation, ReceiptMode } from "@/lib/types";
 import { NotConfigured } from "@/components/NotConfigured";
-import { DataTable, type Column } from "@/components/DataTable";
 import { StatusBadge } from "@/components/StatusBadge";
 import { IconButton, IconLink, ActionIcons } from "@/components/IconButton";
 import { Attachments } from "@/components/Attachments";
@@ -288,6 +287,16 @@ export default function InvoiceViewPage({ params }: { params: { id: string } }) 
   const paid = payments.reduce((sum, p) => sum + p.amount, 0);
   const balance = balanceDue(invoice, paid);
   const status = displayStatus(invoice);
+
+  // Payment timeline derivations: payments oldest-first, plus due/overdue state
+  // (due date compared against today at local midnight).
+  const timelinePayments = [...payments].sort((a, b) => (a.receipt_date < b.receipt_date ? -1 : a.receipt_date > b.receipt_date ? 1 : 0));
+  const todayMidnight = new Date();
+  todayMidnight.setHours(0, 0, 0, 0);
+  const dueMidnight = new Date(`${invoice.due_date}T00:00:00`);
+  const isSettled = balance <= 0.005;
+  const isOverdue = !isSettled && dueMidnight.getTime() < todayMidnight.getTime();
+  const overdueDays = Math.round((todayMidnight.getTime() - dueMidnight.getTime()) / 86400000);
   const { fields: headerFields, discount, afterTaxDiscount, taxLines, notes: notesText } = parseNotes(invoice.notes);
   const discountAmount = computeDiscountAmount(invoice.subtotal, discount);
   const taxRows = computeTaxRows(invoice.subtotal - discountAmount, taxLines);
@@ -397,13 +406,6 @@ export default function InvoiceViewPage({ params }: { params: { id: string } }) 
     setPaymentNotice(`Payment of ${formatCurrency(paymentAmount)} recorded (${receiptNo}).`);
     await loadInvoice();
   }
-
-  const paymentColumns: Column<PaymentRow>[] = [
-    { key: "receipt_no", header: "Receipt No" },
-    { key: "receipt_date", header: "Date", render: (r) => (r.receipt_date ? formatDate(r.receipt_date) : "—") },
-    { key: "mode", header: "Mode", className: "capitalize" },
-    { key: "amount", header: "Amount", className: "text-right", render: (r) => formatCurrency(r.amount) },
-  ];
 
   return (
     <div className="mx-auto max-w-4xl print:max-w-none">
@@ -778,7 +780,48 @@ export default function InvoiceViewPage({ params }: { params: { id: string } }) 
           </form>
         )}
 
-        <DataTable columns={paymentColumns} rows={payments} searchable={false} empty="No payments recorded against this invoice yet." />
+        <div className="ml-3 border-l-2 border-slate-200 pl-6 dark:border-slate-800">
+          <div className="relative flex flex-col gap-0.5 pb-5">
+            <span className="absolute -left-[33px] top-0.5 h-4 w-4 rounded-full border-2 border-white bg-brand dark:border-slate-900" aria-hidden="true" />
+            <p className="text-sm font-bold text-slate-700 dark:text-slate-300">Invoice raised</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              {formatDate(invoice.invoice_date)} · {formatCurrency(invoice.total)}
+            </p>
+          </div>
+
+          {timelinePayments.map((p) => (
+            <div key={p.id} className="relative flex flex-col gap-0.5 pb-5">
+              <span className="absolute -left-[33px] top-0.5 h-4 w-4 rounded-full border-2 border-white bg-emerald-500 dark:border-slate-900" aria-hidden="true" />
+              <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">+{formatCurrency(p.amount)}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                {p.receipt_no} · {p.mode.toUpperCase()} · {formatDate(p.receipt_date)}
+              </p>
+            </div>
+          ))}
+
+          {isSettled ? (
+            <div className="relative flex flex-col gap-0.5 pb-1">
+              <span className="absolute -left-[33px] top-0.5 h-4 w-4 rounded-full border-2 border-white bg-emerald-500 dark:border-slate-900" aria-hidden="true" />
+              <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">Fully settled</p>
+            </div>
+          ) : isOverdue ? (
+            <div className="relative flex flex-col gap-0.5 pb-1">
+              <span className="absolute -left-[33px] top-0.5 h-4 w-4 rounded-full border-2 border-white bg-red-500 dark:border-slate-900" aria-hidden="true" />
+              <p className="text-sm font-semibold text-red-600 dark:text-red-400">
+                Overdue by {overdueDays} {overdueDays === 1 ? "day" : "days"}
+              </p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                was due {formatDate(invoice.due_date)} · balance {formatCurrency(balance)}
+              </p>
+            </div>
+          ) : (
+            <div className="relative flex flex-col gap-0.5 pb-1">
+              <span className="absolute -left-[33px] top-0.5 h-4 w-4 rounded-full border-2 border-white bg-amber-500 dark:border-slate-900" aria-hidden="true" />
+              <p className="text-sm font-semibold text-amber-600 dark:text-amber-400">Due {formatDate(invoice.due_date)}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">balance {formatCurrency(balance)}</p>
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="mt-4 border-t border-slate-200 pt-6 dark:border-slate-800 print:hidden">

@@ -15,6 +15,7 @@ import { buildAllocationMap, paidAmount, balanceDue, displayStatus } from "@/lib
 import { downloadCsv } from "@/lib/csv";
 import { ExportButton } from "@/components/ExportButton";
 import { IconButton, IconLink, ActionIcons } from "@/components/IconButton";
+import { toast } from "@/components/Toast";
 
 interface InvoiceRow {
   id: string;
@@ -42,7 +43,6 @@ export default function InvoiceListPage() {
 
   const [rows, setRows] = useState<InvoiceRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const [search, setSearch] = useState("");
@@ -102,14 +102,13 @@ export default function InvoiceListPage() {
     );
     if (!confirmed) return;
     setDeletingId(row.id);
-    setNotice(null);
     const { error: delErr } = await supabase.from("invoices").delete().eq("id", row.id);
     setDeletingId(null);
     if (delErr) {
       setError(delErr.message);
       return;
     }
-    setNotice(`Invoice ${row.invoice_no} deleted.`);
+    toast(`Invoice ${row.invoice_no} deleted`);
     load();
   }
 
@@ -233,12 +232,6 @@ export default function InvoiceListPage() {
                   ×
                 </Link>
               </span>
-            </div>
-          )}
-
-          {notice && (
-            <div role="status" className="mb-4 rounded-xl border border-emerald-300 bg-emerald-50 p-4 text-sm text-emerald-800 dark:border-emerald-500/40 dark:bg-emerald-950/40 dark:text-emerald-200">
-              {notice}
             </div>
           )}
 

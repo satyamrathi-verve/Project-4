@@ -5,6 +5,7 @@ import Link from "next/link";
 import { supabase, isConfigured } from "@/lib/supabase";
 import type { Customer, Invoice, Receipt } from "@/lib/types";
 import { PageHeader } from "@/components/PageHeader";
+import { IconButton, ActionIcons } from "@/components/IconButton";
 import { NotConfigured } from "@/components/NotConfigured";
 import { FormField, inputClass } from "@/components/FormField";
 import { formatCurrency, formatDate, todayISO } from "@/lib/format";
@@ -137,13 +138,9 @@ export default function CustomerStatementPage() {
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4 print:hidden">
         <PageHeader title="Customer Statement" subtitle="A running account of invoices and receipts for one customer." />
         {isConfigured && selectedCustomer && (
-          <button
-            type="button"
-            onClick={() => window.print()}
-            className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white transition-all duration-200 hover:bg-brand-700 active:scale-95"
-          >
-            Print
-          </button>
+          <IconButton label="Print / Save as PDF" variant="primary" onClick={() => window.print()}>
+            {ActionIcons.print}
+          </IconButton>
         )}
       </div>
 

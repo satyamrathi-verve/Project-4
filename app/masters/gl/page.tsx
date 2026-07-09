@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { supabase, isConfigured } from "@/lib/supabase";
 import type { GLAccount } from "@/lib/types";
 import { PageHeader } from "@/components/PageHeader";
+import { IconButton, ActionIcons } from "@/components/IconButton";
 import { NotConfigured } from "@/components/NotConfigured";
 import { DataTable, type Column } from "@/components/DataTable";
 import { FormField, inputClass } from "@/components/FormField";
@@ -143,13 +144,13 @@ export default function GLMasterPage() {
       key: "id",
       header: "Action",
       render: (a) => (
-        <div className="flex gap-3">
-          <button onClick={() => startEdit(a)} className="text-sm font-medium text-brand dark:text-brand-300">
-            Edit
-          </button>
-          <button onClick={() => handleDelete(a.id)} className="text-sm font-medium text-red-600 dark:text-red-400">
-            Delete
-          </button>
+        <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
+          <IconButton label="Edit account" shape="ghost" onClick={() => startEdit(a)}>
+            {ActionIcons.edit}
+          </IconButton>
+          <IconButton label="Delete account" shape="ghost" variant="danger" onClick={() => handleDelete(a.id)}>
+            {ActionIcons.delete}
+          </IconButton>
         </div>
       ),
     },

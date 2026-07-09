@@ -9,6 +9,8 @@ import { DataTable, type Column } from "@/components/DataTable";
 import { inputClass } from "@/components/FormField";
 import { ScreenIcon } from "@/components/icons";
 import { LineChart, CHART_COLORS } from "@/components/LineChart";
+import { DonutChart } from "@/components/DonutChart";
+import { IconButton, ActionIcons } from "@/components/IconButton";
 import { CountUp } from "@/components/CountUp";
 import { Reveal } from "@/components/Reveal";
 import { StatusPill, effectiveStatus, daysOverdue, type EffectiveStatus } from "@/components/StatusPill";
@@ -69,6 +71,12 @@ const STATUS_BAR: Record<EffectiveStatus, string> = {
   open: "bg-slate-400 dark:bg-slate-500",
   paid: "bg-emerald-500",
 };
+const DONUT_COLOR: Record<EffectiveStatus, string> = {
+  overdue: "text-red-500",
+  partial: "text-amber-500",
+  open: "text-slate-400 dark:text-slate-500",
+  paid: "text-emerald-500",
+};
 
 export default function DashboardPage() {
   const [customers, setCustomers] = useState<CustomerLite[] | null>(null);
@@ -77,6 +85,8 @@ export default function DashboardPage() {
   const [allocations, setAllocations] = useState<{ invoice_id: string; receipt_id: string; amount: number }[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [recentStatusFilter, setRecentStatusFilter] = useState<"all" | EffectiveStatus>("all");
+  const [reloadKey, setReloadKey] = useState(0);
+  const [loadedAt, setLoadedAt] = useState<Date | null>(null);
 
   useEffect(() => {
     if (!supabase) return;
@@ -124,12 +134,13 @@ export default function DashboardPage() {
         setInvoices(builtInvoices);
         setAllocations((allocData ?? []).map((a) => ({ ...a, amount: Number(a.amount) })));
         setReceipts((rcptData ?? []).map((r) => ({ ...r, amount: Number(r.amount) })));
+        setLoadedAt(new Date());
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [reloadKey]);
 
   const loading = customers === null || invoices === null || receipts === null || allocations === null;
 
@@ -160,9 +171,13 @@ export default function DashboardPage() {
     const monthIndex = (d: Date) => months.findIndex((m) => d >= m.start && d <= m.end);
 
     const billedByMonth = months.map(() => 0);
+    const invCountByMonth = months.map(() => 0);
     for (const i of invoices) {
       const idx = monthIndex(parseISODate(i.invoice_date));
-      if (idx >= 0) billedByMonth[idx] += i.total;
+      if (idx >= 0) {
+        billedByMonth[idx] += i.total;
+        invCountByMonth[idx] += 1;
+      }
     }
     const collectedByMonth = months.map(() => 0);
     for (const r of receipts) {
@@ -279,8 +294,10 @@ export default function DashboardPage() {
       dso,
       billedThisMonth,
       collectedThisMonth,
+      collectionRate: invoices.length ? (receipts.reduce((s, r) => s + r.amount, 0) / Math.max(1, invoices.reduce((s, i) => s + i.total, 0))) * 100 : 0,
       monthLabels: months.map((m) => m.label),
       billedByMonth,
+      invCountByMonth,
       collectedByMonth,
       debtorsMonthEnd,
       weekLabels,
@@ -342,7 +359,22 @@ export default function DashboardPage() {
 
   return (
     <div className="mx-auto max-w-6xl">
-      <PageHeader title="Dashboard" subtitle="Your AR at a glance — what's billed, what's collected, and what needs chasing." />
+      <PageHeader
+        title="Dashboard"
+        subtitle="Your AR at a glance — what's billed, what's collected, and what needs chasing."
+        action={
+          <div className="flex items-center gap-2">
+            {loadedAt && (
+              <span className="text-xs text-slate-400 dark:text-slate-500">
+                As of {loadedAt.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
+              </span>
+            )}
+            <IconButton label="Refresh data" onClick={() => setReloadKey((k) => k + 1)}>
+              {ActionIcons.refresh}
+            </IconButton>
+          </div>
+        }
+      />
 
       {!isConfigured && <NotConfigured />}
 
@@ -359,12 +391,12 @@ export default function DashboardPage() {
         <>
           {/* KPI row */}
           <div className="mb-8 grid animate-fade-in-up grid-cols-2 gap-6 sm:grid-cols-3 lg:grid-cols-6 lg:gap-0 lg:divide-x lg:divide-slate-200 lg:dark:divide-slate-800">
-            <KpiTile icon="customers" label="Customers" value={stats.totalCustomers} />
-            <KpiTile icon="invoices" label="Invoices" value={stats.totalInvoices} />
-            <KpiTile icon="ageing" label="Overdue" value={stats.overdueCount} tone={stats.overdueCount > 0 ? "warn" : "default"} />
-            <KpiTile icon="cashflow" label="Outstanding" value={stats.totalOutstanding} format={inrCompact} tone="brand" />
-            <KpiTile icon="invoices" label="Billed (this mo.)" value={stats.billedThisMonth} format={inrCompact} />
-            <KpiTile icon="receipts" label="Collected (this mo.)" value={stats.collectedThisMonth} format={inrCompact} tone="good" />
+            <KpiTile icon="customers" label="Customers" value={stats.totalCustomers} color="sky" />
+            <KpiTile icon="invoices" label="Invoices" value={stats.totalInvoices} color="violet" trend={stats.invCountByMonth} />
+            <KpiTile icon="ageing" label="Overdue" value={stats.overdueCount} color="red" />
+            <KpiTile icon="cashflow" label="Outstanding" value={stats.totalOutstanding} format={inrCompact} color="orange" trend={stats.debtorsMonthEnd} />
+            <KpiTile icon="invoices" label="Billed (this mo.)" value={stats.billedThisMonth} format={inrCompact} color="indigo" trend={stats.billedByMonth} />
+            <KpiTile icon="receipts" label="Collected (this mo.)" value={stats.collectedThisMonth} format={inrCompact} color="emerald" trend={stats.collectedByMonth} />
           </div>
 
           {/* DSO banner */}
@@ -379,7 +411,26 @@ export default function DashboardPage() {
                 invoicing. Lower is healthier.
               </p>
             </div>
-            <ScreenIcon name="cashflow" className="hidden h-16 w-16 flex-none text-brand/20 dark:text-brand-300/20 sm:block" />
+            <div className="hidden flex-none items-center gap-3 sm:flex">
+              <svg viewBox="0 0 80 80" className="h-20 w-20" role="img" aria-label={`${Math.round(stats.collectionRate)}% of billed collected`}>
+                <circle cx="40" cy="40" r="33" fill="none" strokeWidth="9" className="stroke-slate-200/80 dark:stroke-slate-800" />
+                <circle
+                  cx="40"
+                  cy="40"
+                  r="33"
+                  fill="none"
+                  strokeWidth="9"
+                  strokeLinecap="round"
+                  className="stroke-emerald-500"
+                  strokeDasharray={`${(Math.min(100, stats.collectionRate) / 100) * 2 * Math.PI * 33} ${2 * Math.PI * 33}`}
+                  transform="rotate(-90 40 40)"
+                />
+                <text x="40" y="45" textAnchor="middle" fontSize="16" fontWeight="800" className="fill-slate-900 dark:fill-white">
+                  {Math.round(stats.collectionRate)}%
+                </text>
+              </svg>
+              <p className="max-w-[92px] text-xs leading-snug text-slate-500 dark:text-slate-400">of billed money collected so far</p>
+            </div>
           </div>
 
           {/* The four trend charts — two rows of two */}
@@ -498,27 +549,30 @@ export default function DashboardPage() {
               <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                 Invoice Status Breakdown
               </h3>
-              <div className="space-y-4">
-                {STATUS_ORDER.map((s) => {
-                  const stat = stats.statusStats[s];
-                  const pct = stats.totalInvoices ? (stat.count / stats.totalInvoices) * 100 : 0;
-                  return (
-                    <div key={s}>
-                      <div className="mb-1 flex items-center justify-between text-xs">
+              <div className="flex flex-wrap items-center gap-8">
+                <DonutChart
+                  segments={STATUS_ORDER.map((s) => ({
+                    label: STATUS_LABEL[s],
+                    value: stats.statusStats[s].count,
+                    colorClass: DONUT_COLOR[s],
+                  }))}
+                  centerValue={String(stats.totalInvoices)}
+                  centerLabel="invoices"
+                />
+                <div className="min-w-[190px] flex-1 space-y-3">
+                  {STATUS_ORDER.map((s) => {
+                    const stat = stats.statusStats[s];
+                    return (
+                      <div key={s} className="flex items-center gap-2.5 text-sm">
+                        <span className={`h-2.5 w-2.5 flex-none rounded-full ${STATUS_BAR[s]}`} />
                         <span className="font-medium text-slate-600 dark:text-slate-300">{STATUS_LABEL[s]}</span>
-                        <span className="text-slate-400 dark:text-slate-500">
+                        <span className="ml-auto tabular-nums text-slate-400 dark:text-slate-500">
                           {stat.count} · {inr.format(stat.amount)}
                         </span>
                       </div>
-                      <div className="h-2.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
-                        <div
-                          className={`h-full origin-left animate-grow-x rounded-full transition-all ${STATUS_BAR[s]}`}
-                          style={{ width: `${stat.count > 0 ? Math.max(pct, 2) : 0}%`, animationDelay: `${STATUS_ORDER.indexOf(s) * 80}ms` }}
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
               </div>
             </section>
 
@@ -584,25 +638,65 @@ export default function DashboardPage() {
   );
 }
 
+const KPI_COLORS: Record<string, string> = {
+  sky: "bg-sky-50 text-sky-600 dark:bg-sky-900/30 dark:text-sky-300",
+  violet: "bg-violet-50 text-violet-600 dark:bg-violet-900/30 dark:text-violet-300",
+  red: "bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-300",
+  orange: "bg-orange-50 text-orange-600 dark:bg-orange-900/30 dark:text-orange-300",
+  indigo: "bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-300",
+  emerald: "bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-300",
+  brand: "bg-brand-50 text-brand dark:bg-brand-900/30 dark:text-brand-300",
+};
+
+const KPI_SPARK: Record<string, string> = {
+  sky: "text-sky-500 dark:text-sky-400",
+  violet: "text-violet-500 dark:text-violet-400",
+  red: "text-red-500 dark:text-red-400",
+  orange: "text-orange-500 dark:text-orange-400",
+  indigo: "text-indigo-500 dark:text-indigo-400",
+  emerald: "text-emerald-500 dark:text-emerald-400",
+  brand: "text-brand dark:text-brand-300",
+};
+
+/* Tiny 6-month trend line rendered inside a KPI tile. */
+function Spark({ values, colorClass }: { values: number[]; colorClass: string }) {
+  if (values.length < 2) return null;
+  const max = Math.max(...values);
+  const min = Math.min(...values, 0);
+  const range = max - min || 1;
+  const pts = values.map((v, i) => `${(i / (values.length - 1)) * 100},${25 - ((v - min) / range) * 22}`).join(" ");
+  return (
+    <svg viewBox="0 0 100 28" preserveAspectRatio="none" className={`mt-1 h-4 w-20 ${colorClass}`} aria-hidden>
+      <polyline
+        points={pts}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={2.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        vectorEffect="non-scaling-stroke"
+        opacity={0.8}
+      />
+    </svg>
+  );
+}
+
 function KpiTile({
   icon,
   label,
   value,
   format,
-  tone = "default",
+  color = "brand",
+  trend,
 }: {
   icon: string;
   label: string;
   value: number;
   format?: (n: number) => string;
-  tone?: "default" | "brand" | "warn" | "good";
+  color?: keyof typeof KPI_COLORS;
+  trend?: number[];
 }) {
-  const iconWrap =
-    tone === "warn"
-      ? "bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-300"
-      : tone === "good"
-      ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-300"
-      : "bg-brand-50 text-brand dark:bg-brand-900/30 dark:text-brand-300";
+  const iconWrap = KPI_COLORS[color] ?? KPI_COLORS.brand;
   return (
     <div className="lg:px-4 lg:first:pl-0">
       <div className="flex items-center gap-3">
@@ -614,6 +708,7 @@ function KpiTile({
             <CountUp value={value} format={format} />
           </p>
           <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">{label}</p>
+          {trend && <Spark values={trend} colorClass={KPI_SPARK[color] ?? KPI_SPARK.brand} />}
         </div>
       </div>
     </div>

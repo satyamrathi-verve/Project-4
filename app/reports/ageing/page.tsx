@@ -5,6 +5,7 @@ import Link from "next/link";
 import { supabase, isConfigured } from "@/lib/supabase";
 import type { Customer, Invoice, Receipt, ReceiptAllocation, ReminderTemplate } from "@/lib/types";
 import { PageHeader } from "@/components/PageHeader";
+import { IconButton, ActionIcons } from "@/components/IconButton";
 import { NotConfigured } from "@/components/NotConfigured";
 import { FormField, inputClass } from "@/components/FormField";
 import { EmailComposeModal } from "@/components/EmailComposeModal";
@@ -89,6 +90,15 @@ const BUCKET_COLS: { key: Bucket; header: string }[] = [
   { key: "d61_90", header: "61–90 days" },
   { key: "d90plus", header: "90+ days" },
 ];
+
+// Heatmap tints for the overdue bucket cells — translucent rgba so they read on both
+// light and dark backgrounds. Older buckets use angrier colours and stronger alphas.
+const BUCKET_HEAT: Record<Exclude<Bucket, "notDue">, { rgb: string; base: number; range: number }> = {
+  d0_30: { rgb: "245, 158, 11", base: 0.06, range: 0.22 }, // amber
+  d31_60: { rgb: "249, 115, 22", base: 0.06, range: 0.24 }, // orange
+  d61_90: { rgb: "239, 68, 68", base: 0.07, range: 0.26 }, // red
+  d90plus: { rgb: "220, 38, 38", base: 0.08, range: 0.3 }, // deep red
+};
 
 const EXPORT_TEMPLATES: { key: ExportTemplate; label: string; hint: string }[] = [
   { key: "summary", label: "Summary (by customer)", hint: "One row per customer, bucketed." },
@@ -424,6 +434,24 @@ export default function AgeingReportPage() {
     }
     return t;
   }, [filteredRows]);
+
+  // Largest single overdue-bucket value across the visible rows — the heatmap's 100% mark.
+  const maxBucket = useMemo(() => {
+    let max = 0;
+    for (const r of filteredRows) {
+      max = Math.max(max, r.d0_30, r.d31_60, r.d61_90, r.d90plus);
+    }
+    return max;
+  }, [filteredRows]);
+
+  // Inline background tint for one overdue bucket cell; undefined = no tint
+  // (not-due bucket, zero values, or nothing overdue on screen).
+  const bucketHeatStyle = (key: Bucket, value: number) => {
+    if (key === "notDue" || value <= 0 || maxBucket <= 0) return undefined;
+    const heat = BUCKET_HEAT[key];
+    const intensity = Math.min(value / maxBucket, 1);
+    return { backgroundColor: `rgba(${heat.rgb}, ${(heat.base + heat.range * intensity).toFixed(3)})` };
+  };
 
   const overLimitCount = useMemo(() => filteredRows.filter((r) => r.overLimit).length, [filteredRows]);
   const highPriorityCount = useMemo(() => filteredRows.filter((r) => r.priority === "High").length, [filteredRows]);
@@ -813,9 +841,9 @@ export default function AgeingReportPage() {
               )}
             </div>
 
-            <button type="button" onClick={() => window.print()} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-600 transition-all duration-200 hover:bg-slate-50 active:scale-95 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">
-              Print
-            </button>
+            <IconButton label="Print / Save as PDF" onClick={() => window.print()}>
+              {ActionIcons.print}
+            </IconButton>
 
             <div ref={emailMenuRef} className="relative">
               <button
@@ -1214,7 +1242,7 @@ export default function AgeingReportPage() {
                           </td>
                         )}
                         {activeBucketCols.map((b) => (
-                          <td key={b.key} className="px-4 py-3 text-right text-slate-700 dark:text-slate-300">
+                          <td key={b.key} className="px-4 py-3 text-right text-slate-700 dark:text-slate-300" style={bucketHeatStyle(b.key, r[b.key])}>
                             {r[b.key] > 0 ? formatCurrency(r[b.key]) : "–"}
                           </td>
                         ))}

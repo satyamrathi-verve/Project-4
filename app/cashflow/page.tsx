@@ -5,6 +5,7 @@ import * as XLSX from "xlsx";
 import { supabase, isConfigured } from "@/lib/supabase";
 import { inr, parseISODate, todayMidnight, addCalendarDays, daysBetween, toISODate } from "@/lib/format";
 import { PageHeader } from "@/components/PageHeader";
+import { IconButton, ActionIcons } from "@/components/IconButton";
 import { NotConfigured } from "@/components/NotConfigured";
 import { DataTable, type Column } from "@/components/DataTable";
 import { FormField, inputClass } from "@/components/FormField";
@@ -360,12 +361,15 @@ export default function CashflowPage() {
       header: "",
       className: "text-right",
       render: (r) => (
-        <button
-          onClick={() => setExpanded(expanded === r.key ? null : r.key)}
-          className="rounded-lg border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-600 hover:border-brand hover:text-brand dark:border-slate-700 dark:text-slate-300 dark:hover:border-brand-400 dark:hover:text-brand-300"
-        >
-          {expanded === r.key ? "Hide" : "View"}
-        </button>
+        <span className="inline-flex" onClick={(e) => e.stopPropagation()}>
+          <IconButton
+            label={expanded === r.key ? "Hide invoices" : "View invoices in this period"}
+            shape="ghost"
+            onClick={() => setExpanded(expanded === r.key ? null : r.key)}
+          >
+            {expanded === r.key ? ActionIcons.hide : ActionIcons.view}
+          </IconButton>
+        </span>
       ),
     },
   ];

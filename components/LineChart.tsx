@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { inr, inrCompact } from "@/lib/format";
 
 /*
@@ -46,7 +46,7 @@ function niceMax(v: number): number {
 
 const W = 640;
 const H = 240;
-const PAD = { top: 14, right: 14, bottom: 26, left: 52 };
+const PAD = { top: 14, right: 60, bottom: 26, left: 52 };
 
 export function LineChart({
   labels,
@@ -60,10 +60,22 @@ export function LineChart({
   valueFormat?: (n: number) => string;
 }) {
   const isDark = useIsDark();
+  const gid = useId().replace(/[^a-zA-Z0-9]/g, "");
   const wrapRef = useRef<HTMLDivElement>(null);
   const pathsRef = useRef<(SVGPathElement | null)[]>([]);
   const [hover, setHover] = useState<number | null>(null);
   const [inView, setInView] = useState(false);
+  const [hidden, setHidden] = useState<Set<string>>(new Set());
+
+  function toggleSeries(name: string) {
+    setHidden((h) => {
+      const visibleCount = series.filter((s) => !h.has(s.name)).length;
+      const next = new Set(h);
+      if (next.has(name)) next.delete(name);
+      else if (visibleCount > 1) next.add(name); // never hide the last visible series
+      return next;
+    });
+  }
 
   // Draw-on-view: once the chart scrolls into the viewport, each solid line
   // "draws" itself left-to-right (stroke-dash trick); dashed overlays fade in
@@ -95,7 +107,7 @@ export function LineChart({
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     pathsRef.current.forEach((p, i) => {
       const s = series[i];
-      if (!p || !s) return;
+      if (!p || !s || hidden.has(s.name)) return;
       if (s.dashed) {
         p.style.transition = "none";
         p.style.opacity = "0";
@@ -114,12 +126,15 @@ export function LineChart({
       }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [inView, series, isDark]);
+  }, [inView, series, isDark, hidden]);
 
   const innerW = W - PAD.left - PAD.right;
   const innerH = H - PAD.top - PAD.bottom;
 
-  const max = useMemo(() => niceMax(Math.max(1, ...series.flatMap((s) => s.values))), [series]);
+  const max = useMemo(
+    () => niceMax(Math.max(1, ...series.filter((s) => !hidden.has(s.name)).flatMap((s) => s.values))),
+    [series, hidden]
+  );
   const ticks = [0, 0.25, 0.5, 0.75, 1].map((t) => t * max);
 
   const n = labels.length;
@@ -148,19 +163,39 @@ export function LineChart({
       {series.length >= 2 && (
         <div className="mb-2 flex flex-wrap items-center gap-4">
           {series.map((s) => (
-            <span key={s.name} className="flex items-center gap-1.5 text-xs font-medium text-slate-500 dark:text-slate-400">
+            <button
+              key={s.name}
+              type="button"
+              onClick={() => toggleSeries(s.name)}
+              title={hidden.has(s.name) ? "Click to show" : "Click to hide"}
+              className={`flex items-center gap-1.5 text-xs font-medium text-slate-500 transition-opacity hover:opacity-80 dark:text-slate-400 ${
+                hidden.has(s.name) ? "opacity-40 line-through" : ""
+              }`}
+            >
               <span
                 className="inline-block h-[3px] w-4 rounded-full"
                 style={{ background: isDark ? s.color.dark : s.color.light }}
               />
               {s.name}
-            </span>
+            </button>
           ))}
         </div>
       )}
 
       <div ref={wrapRef} className="relative" onMouseMove={onMove} onMouseLeave={() => setHover(null)}>
         <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", maxHeight: height }} role="img">
+          <defs>
+            {series.map((s, i) => {
+              const color = isDark ? s.color.dark : s.color.light;
+              return (
+                <linearGradient key={s.name} id={`${gid}-${i}`} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={color} stopOpacity="0.24" />
+                  <stop offset="100%" stopColor={color} stopOpacity="0.02" />
+                </linearGradient>
+              );
+            })}
+          </defs>
+
           {/* gridlines + y labels */}
           {ticks.map((t) => (
             <g key={t}>
@@ -200,37 +235,80 @@ export function LineChart({
             />
           )}
 
+          {/* gradient area fills (drawn under the lines) */}
+          {inView &&
+            series.map((s, i) => {
+              if (hidden.has(s.name) || s.dashed || s.values.length < 2) return null;
+              const base = PAD.top + innerH;
+              const dAttr = `${pathFor(s.values)} L${x(s.values.length - 1).toFixed(1)},${base} L${x(0).toFixed(1)},${base} Z`;
+              return (
+                <path
+                  key={`area-${s.name}`}
+                  d={dAttr}
+                  fill={`url(#${gid}-${i})`}
+                  stroke="none"
+                  style={{ animation: "fade-in-soft 0.9s ease-out 0.25s both" }}
+                />
+              );
+            })}
+
           {/* series lines */}
-          {series.map((s, i) => (
-            <path
-              key={s.name}
-              ref={(el) => {
-                pathsRef.current[i] = el;
-              }}
-              d={pathFor(s.values)}
-              fill="none"
-              stroke={isDark ? s.color.dark : s.color.light}
-              strokeWidth={2}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeDasharray={s.dashed ? "6 4" : undefined}
-              style={{ opacity: 0 }}
-            />
-          ))}
+          {series.map((s, i) =>
+            hidden.has(s.name) ? null : (
+              <path
+                key={s.name}
+                ref={(el) => {
+                  pathsRef.current[i] = el;
+                }}
+                d={pathFor(s.values)}
+                fill="none"
+                stroke={isDark ? s.color.dark : s.color.light}
+                strokeWidth={2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeDasharray={s.dashed ? "6 4" : undefined}
+                style={{ opacity: 0 }}
+              />
+            )
+          )}
 
           {/* hover markers (2px surface ring so overlapping points stay separable) */}
           {hover !== null &&
-            series.map((s) => (
-              <circle
-                key={s.name}
-                cx={x(hover)}
-                cy={y(s.values[hover] ?? 0)}
-                r={4.5}
-                fill={isDark ? s.color.dark : s.color.light}
-                stroke={surfaceStroke}
-                strokeWidth={2}
-              />
-            ))}
+            series.map((s) =>
+              hidden.has(s.name) ? null : (
+                <circle
+                  key={s.name}
+                  cx={x(hover)}
+                  cy={y(s.values[hover] ?? 0)}
+                  r={4.5}
+                  fill={isDark ? s.color.dark : s.color.light}
+                  stroke={surfaceStroke}
+                  strokeWidth={2}
+                />
+              )
+            )}
+
+          {/* end-point emphasis: dot + value label on each series' last point */}
+          {inView &&
+            (() => {
+              const usedY: number[] = [];
+              return series.map((s) => {
+                if (hidden.has(s.name) || s.values.length === 0) return null;
+                const li = s.values.length - 1;
+                const color = isDark ? s.color.dark : s.color.light;
+                let labelY = y(s.values[li]) + 3.5;
+                for (const prev of usedY) if (Math.abs(prev - labelY) < 11) labelY = prev + 11;
+                usedY.push(labelY);
+                return (
+                  <g key={`end-${s.name}`} style={{ animation: "fade-in-soft 0.5s ease-out 1.1s both" }}>
+                    <circle cx={x(li)} cy={y(s.values[li])} r={3.5} fill={color} stroke={surfaceStroke} strokeWidth={1.5} />
+                    <text x={x(li) + 7} y={labelY} fontSize={10} fontWeight={700} fill={color}>
+                      {inrCompact(s.values[li])}
+                    </text>
+                  </g>
+                );
+              });
+            })()}
         </svg>
 
         {/* tooltip */}
@@ -240,7 +318,7 @@ export function LineChart({
             style={tipFlip ? { right: `${100 - tipLeftPct + 2}%` } : { left: `${tipLeftPct + 2}%` }}
           >
             <p className="mb-1 font-semibold text-slate-600 dark:text-slate-300">{labels[hover]}</p>
-            {series.map((s) => (
+            {series.filter((s) => !hidden.has(s.name)).map((s) => (
               <p key={s.name} className="flex items-center justify-between gap-4 text-slate-500 dark:text-slate-400">
                 <span className="flex items-center gap-1.5">
                   <span className="inline-block h-2 w-2 rounded-full" style={{ background: isDark ? s.color.dark : s.color.light }} />

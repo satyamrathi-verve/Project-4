@@ -7,6 +7,7 @@ import { Nav } from "@/components/Nav";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { GlobalSearch } from "@/components/GlobalSearch";
 import { AskAria } from "@/components/AskAria";
+import { Toaster } from "@/components/Toast";
 
 /* Hides the app (nav + header) until signed in. The Sign In page renders
    full-screen with no chrome; every other route needs a session or gets bounced. */
@@ -64,9 +65,12 @@ export function AuthGate({ children }: { children: ReactNode }) {
             </button>
           </div>
         </header>
-        <main className="flex-1 overflow-y-auto p-8 print:overflow-visible print:p-0">{children}</main>
+        <main key={pathname} className="route-fade flex-1 overflow-y-auto p-8 print:overflow-visible print:p-0">
+          {children}
+        </main>
       </div>
       <AskAria />
+      <Toaster />
     </div>
   );
 }

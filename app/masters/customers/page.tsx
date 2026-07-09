@@ -34,6 +34,7 @@ function receivablesOf(c: Customer) {
 export default function CustomerMasterPage() {
   const router = useRouter();
   const [customers, setCustomers] = useState<Customer[] | null>(null);
+  const [outstandingByCustomer, setOutstandingByCustomer] = useState<Record<string, number>>({});
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<CustomerStatus | "ALL">("ALL");
@@ -41,12 +42,31 @@ export default function CustomerMasterPage() {
   useEffect(() => {
     if (!supabase) return;
     (async () => {
-      const { data, error } = await supabase.from("customers").select("*").order("code");
-      if (error) {
-        setError(error.message);
+      const [custRes, invRes, allocRes] = await Promise.all([
+        supabase.from("customers").select("*").order("code"),
+        supabase.from("invoices").select("id, customer_id, total, status"),
+        supabase.from("receipt_allocations").select("invoice_id, amount"),
+      ]);
+      if (custRes.error) {
+        setError(custRes.error.message);
         return;
       }
-      setCustomers((data ?? []) as Customer[]);
+      setCustomers((custRes.data ?? []) as Customer[]);
+
+      if (!invRes.error && !allocRes.error) {
+        const invoices = (invRes.data ?? []) as { id: string; customer_id: string; total: number; status: string }[];
+        const allocations = (allocRes.data ?? []) as { invoice_id: string; amount: number }[];
+        const allocatedByInvoice: Record<string, number> = {};
+        for (const a of allocations) {
+          allocatedByInvoice[a.invoice_id] = (allocatedByInvoice[a.invoice_id] ?? 0) + a.amount;
+        }
+        const byCustomer: Record<string, number> = {};
+        for (const inv of invoices) {
+          const remaining = Math.max(0, inv.total - (allocatedByInvoice[inv.id] ?? 0));
+          if (remaining > 0) byCustomer[inv.customer_id] = (byCustomer[inv.customer_id] ?? 0) + remaining;
+        }
+        setOutstandingByCustomer(byCustomer);
+      }
     })();
   }, []);
 
@@ -78,6 +98,36 @@ export default function CustomerMasterPage() {
       header: "Receivables",
       className: "text-right",
       render: (c) => formatCurrency(receivablesOf(c)),
+    },
+    {
+      key: "credit_used",
+      header: "Credit Used",
+      sortValue: (c) =>
+        c.credit_limit > 0 ? ((outstandingByCustomer[c.id] ?? 0) / c.credit_limit) * 100 : -1,
+      render: (c) => {
+        if (c.credit_limit <= 0) {
+          return <span className="text-slate-400 dark:text-slate-500">—</span>;
+        }
+        const outstanding = outstandingByCustomer[c.id] ?? 0;
+        const pct = (outstanding / c.credit_limit) * 100;
+        const width = outstanding > 0 ? Math.max(Math.min(pct, 100), 2) : 0;
+        const barColor = pct >= 90 ? "bg-red-500" : pct >= 60 ? "bg-amber-500" : "bg-emerald-500";
+        return (
+          <div
+            className="flex items-center gap-2"
+            title={`${formatCurrency(outstanding)} outstanding of ${formatCurrency(c.credit_limit)} limit`}
+          >
+            <div className="h-2 w-24 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+              <div className={`h-full rounded-full ${barColor}`} style={{ width: `${width}%` }} />
+            </div>
+            <span
+              className={`text-xs tabular-nums ${pct >= 90 ? "text-red-600 dark:text-red-400" : "text-slate-500 dark:text-slate-400"}`}
+            >
+              {Math.round(pct)}%
+            </span>
+          </div>
+        );
+      },
     },
   ];
 
