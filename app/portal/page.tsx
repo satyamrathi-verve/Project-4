@@ -9,6 +9,7 @@ import { DataTable, type Column } from "@/components/DataTable";
 import { ExportButton } from "@/components/ExportButton";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { toast, Toaster } from "@/components/Toast";
 import { formatCurrency, formatDate, todayISO } from "@/lib/format";
 import { downloadCsv } from "@/lib/csv";
 import { buildAllocationMap, paidAmount, balanceDue, displayStatus } from "@/lib/invoice";
@@ -74,7 +75,6 @@ export default function CustomerPortalPage() {
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [toast, setToast] = useState<string | null>(null);
 
   useEffect(() => {
     if (!supabase) return;
@@ -135,11 +135,6 @@ export default function CustomerPortalPage() {
     router.replace("/signin");
   }
 
-  function showToast(message: string) {
-    setToast(message);
-    setTimeout(() => setToast(null), 3000);
-  }
-
   // ---- 1. Summary bar --------------------------------------------------
   const totalOutstanding = (rows ?? []).filter((r) => r.status !== "paid").reduce((s, r) => s + r.balance, 0);
   const totalOverdue = (rows ?? []).filter((r) => r.status === "overdue").reduce((s, r) => s + r.balance, 0);
@@ -160,11 +155,11 @@ export default function CustomerPortalPage() {
   // ---- 3. Pay Now / Pay Selected (placeholder — no payment processing yet) ----
   function handlePayNow(row: InvoiceRow) {
     console.log("Pay Now clicked for invoice", row.id, row.invoice_no);
-    showToast("Payment flow coming soon");
+    toast("Payment flow coming soon", "info");
   }
   function handlePaySelected() {
     console.log("Pay Selected clicked for invoices", Array.from(selectedIds));
-    showToast("Payment flow coming soon");
+    toast("Payment flow coming soon", "info");
   }
   function toggleSelected(id: string) {
     setSelectedIds((prev) => {
@@ -193,7 +188,7 @@ export default function CustomerPortalPage() {
   // ---- 4. Download invoice / Export CSV (placeholders / client-side CSV) ----
   function downloadInvoice(invoiceId: string) {
     console.log("Download invoice", invoiceId);
-    showToast("Invoice download coming soon");
+    toast("Invoice download coming soon", "info");
   }
   function handleExportCsv() {
     downloadCsv(
@@ -391,12 +386,9 @@ export default function CustomerPortalPage() {
         )}
       </main>
 
-      {/* Placeholder "toast" for Pay Now / Pay Selected / Download — no toast library in this app yet */}
-      {toast && (
-        <div className="fixed bottom-6 right-6 z-50 animate-fade-in-up rounded-lg bg-slate-900 px-4 py-3 text-sm text-white shadow-lg dark:bg-slate-700">
-          {toast}
-        </div>
-      )}
+      {/* AuthGate normally mounts this for internal routes — the portal bypasses
+          AuthGate's shell entirely, so it needs its own instance. */}
+      <Toaster />
     </div>
   );
 }
