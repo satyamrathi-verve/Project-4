@@ -224,7 +224,7 @@ export function CustomerForm({ mode, initial }: { mode: "create" | "edit"; initi
           <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Basic Details</h3>
           <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Identity, address, contact and credit terms.</p>
         </div>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-x-10 gap-y-6 sm:grid-cols-2">
           <FormField label="Customer Code">
             <input className={inputClass} value={values.code} onChange={(e) => set("code", e.target.value)} />
             {errors.code && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{errors.code}</p>}
@@ -359,7 +359,7 @@ export function CustomerForm({ mode, initial }: { mode: "create" | "edit"; initi
           <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Advanced Details</h3>
           <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">GST compliance, TDS/TCS, MSME, banking and export information.</p>
         </div>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-x-10 gap-y-6 sm:grid-cols-2">
           <FormField label="Place of Supply">
             <input className={inputClass} value={values.place_of_supply} onChange={(e) => set("place_of_supply", e.target.value)} />
           </FormField>

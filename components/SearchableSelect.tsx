@@ -41,7 +41,7 @@ export function SearchableSelect({
   return (
     <div className="relative">
       <input
-        className={`${inputClass} w-full`}
+        className={inputClass}
         value={query}
         placeholder={placeholder}
         onChange={(e) => {

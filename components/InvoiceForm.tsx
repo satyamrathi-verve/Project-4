@@ -384,7 +384,7 @@ export function InvoiceForm({ invoiceId }: { invoiceId?: string }) {
 
       <form onSubmit={handleSave} className="space-y-6">
         <div className="border-t border-slate-200 pt-6 dark:border-slate-800">
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-x-10 gap-y-6 sm:grid-cols-2">
             <div className="sm:col-span-2">
               <FormField label="Customer">
                 <SearchableSelect
@@ -395,7 +395,7 @@ export function InvoiceForm({ invoiceId }: { invoiceId?: string }) {
                 />
               </FormField>
               {selectedCustomer && (
-                <div className="mt-2 rounded-lg bg-slate-50 p-3 text-xs text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
+                <div className="mt-3 border-l-2 border-slate-200 pl-3 text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400">
                   <p>
                     <span className="font-medium text-slate-700 dark:text-slate-300">{selectedCustomer.code}</span>
                     {selectedCustomer.contact_person && ` · ${selectedCustomer.contact_person}`}
