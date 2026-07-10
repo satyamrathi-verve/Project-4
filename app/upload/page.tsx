@@ -174,10 +174,11 @@ function parseInvoicesCsv(text: string): { headerError: string | null; rows: Inv
   return { headerError: null, rows };
 }
 
-function rowWrapClass(hasRowIssue: boolean): string {
-  return hasRowIssue
-    ? "border-b border-slate-100 bg-red-50 dark:border-slate-800 dark:bg-red-950/30"
-    : "border-b border-slate-100 last:border-0 dark:border-slate-800";
+function rowWrapClass(hasRowIssue: boolean, index: number): string {
+  if (hasRowIssue) return "border-b border-slate-100 bg-red-50 dark:border-slate-800 dark:bg-red-950/30";
+  return `border-b border-slate-100 last:border-0 dark:border-slate-800 ${
+    index % 2 === 1 ? "bg-slate-50 dark:bg-slate-800/40" : "bg-white dark:bg-slate-900"
+  }`;
 }
 
 function EditableCell({
@@ -685,10 +686,10 @@ export default function UploadReportPage() {
                           </td>
                         </tr>
                       ) : (
-                        (filteredComputed as typeof computedCustomerRows).slice(start, start + PAGE_SIZE).map((r) => {
+                        (filteredComputed as typeof computedCustomerRows).slice(start, start + PAGE_SIZE).map((r, i) => {
                           const draft = customerRows[r.sourceIndex];
                           return (
-                            <tr key={r.sourceIndex} className={rowWrapClass(!!r.rowIssue)} title={r.rowIssue ?? undefined}>
+                            <tr key={r.sourceIndex} className={rowWrapClass(!!r.rowIssue, i)} title={r.rowIssue ?? undefined}>
                               <td className="px-2 py-1.5">
                                 <EditableCell value={draft.code} onChange={(v) => updateCustomerField(r.sourceIndex, "code", v)} error={r.rowIssue ?? undefined} />
                               </td>
@@ -739,10 +740,10 @@ export default function UploadReportPage() {
                           </td>
                         </tr>
                       ) : (
-                        (filteredComputed as typeof computedInvoiceRows).slice(start, start + PAGE_SIZE).map((r) => {
+                        (filteredComputed as typeof computedInvoiceRows).slice(start, start + PAGE_SIZE).map((r, i) => {
                           const draft = invoiceRows[r.sourceIndex];
                           return (
-                            <tr key={r.sourceIndex} className={rowWrapClass(!!r.rowIssue)} title={r.rowIssue ?? undefined}>
+                            <tr key={r.sourceIndex} className={rowWrapClass(!!r.rowIssue, i)} title={r.rowIssue ?? undefined}>
                               <td className="px-2 py-1.5">
                                 <EditableCell value={draft.customer_code} onChange={(v) => updateInvoiceField(r.sourceIndex, "customer_code", v)} error={r.rowIssue ?? undefined} />
                               </td>
