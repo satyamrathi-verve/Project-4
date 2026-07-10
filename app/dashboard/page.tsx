@@ -5,7 +5,6 @@ import { supabase, isConfigured } from "@/lib/supabase";
 import { inr, inrCompact, parseISODate, todayMidnight, addCalendarDays, formatShortDate, toISODate } from "@/lib/format";
 import { PageHeader } from "@/components/PageHeader";
 import { NotConfigured } from "@/components/NotConfigured";
-import { DataTable, type Column } from "@/components/DataTable";
 import { ScreenIcon } from "@/components/icons";
 import { LineChart, CHART_COLORS } from "@/components/LineChart";
 import { DonutChart } from "@/components/DonutChart";
@@ -324,19 +323,6 @@ export default function DashboardPage() {
     };
   }, [customers, invoices, receipts, allocations]);
 
-  const overdueColumns: Column<OverdueByCustomerRow>[] = [
-    { key: "name", header: "Customer" },
-    { key: "invoices", header: "Invoices", className: "text-right", sortValue: (r) => r.invoices },
-    { key: "amount", header: "Overdue Amount", className: "text-right", render: (r) => <span className="font-semibold text-red-600 dark:text-red-400">{inr.format(r.amount)}</span>, sortValue: (r) => r.amount },
-    {
-      key: "maxDays",
-      header: "Oldest",
-      className: "text-right",
-      render: (r) => <span className={r.maxDays > 60 ? "font-semibold text-red-600 dark:text-red-400" : ""}>{r.maxDays}d</span>,
-      sortValue: (r) => r.maxDays,
-    },
-  ];
-
   return (
     <div className="mx-auto max-w-6xl">
       <PageHeader
@@ -425,35 +411,47 @@ export default function DashboardPage() {
               {stats.overdueByCustomer.length === 0 ? (
                 <p className="text-sm text-slate-400 dark:text-slate-500">Nothing overdue — the book is clean. 🎉</p>
               ) : (
-                <>
-                  {(() => {
-                    const top = stats.overdueByCustomer.slice(0, 6);
-                    const rest = stats.overdueTotal - top.reduce((s, r) => s + r.amount, 0);
-                    const segments = top.map((r, i) => ({
-                      label: r.name,
-                      value: r.amount,
-                      colorClass: OVERDUE_DONUT_COLORS[i % OVERDUE_DONUT_COLORS.length],
-                    }));
-                    if (rest > 0.005) segments.push({ label: "Others", value: rest, colorClass: "text-slate-400 dark:text-slate-500" });
-                    return (
-                      <div className="mb-5 flex flex-wrap items-center gap-8">
-                        <DonutChart segments={segments} centerValue={inrCompact(stats.overdueTotal)} centerLabel="overdue" size={140} />
-                        <div className="min-w-[190px] flex-1 space-y-2.5">
-                          {segments.map((seg) => (
-                            <div key={seg.label} className="flex items-center gap-2.5 text-xs">
-                              <span className={`h-2.5 w-2.5 flex-none rounded-full bg-current ${seg.colorClass}`} />
-                              <span className="truncate font-medium text-slate-600 dark:text-slate-300">{seg.label}</span>
-                              <span className="ml-auto flex-none font-semibold tabular-nums text-red-600 dark:text-red-400">
-                                {inr.format(seg.value)}
+                (() => {
+                  const top = stats.overdueByCustomer.slice(0, 6);
+                  const restRows = stats.overdueByCustomer.slice(6);
+                  const rest = stats.overdueTotal - top.reduce((s, r) => s + r.amount, 0);
+                  const segments = top.map((r, i) => ({
+                    label: r.name,
+                    value: r.amount,
+                    colorClass: OVERDUE_DONUT_COLORS[i % OVERDUE_DONUT_COLORS.length],
+                    detail: `${r.invoices} inv · ${r.maxDays}d`,
+                    stale: r.maxDays > 60,
+                  }));
+                  if (rest > 0.005)
+                    segments.push({
+                      label: "Others",
+                      value: rest,
+                      colorClass: "text-slate-400 dark:text-slate-500",
+                      detail: `${restRows.length} customers`,
+                      stale: false,
+                    });
+                  return (
+                    <div className="flex flex-wrap items-center gap-10">
+                      <DonutChart segments={segments} centerValue={inrCompact(stats.overdueTotal)} centerLabel="overdue" size={180} />
+                      <div className="min-w-[220px] flex-1 space-y-3">
+                        {segments.map((seg) => (
+                          <div key={seg.label} className="flex items-center gap-2.5 text-sm">
+                            <span className={`h-2.5 w-2.5 flex-none rounded-full bg-current ${seg.colorClass}`} />
+                            <span className="min-w-0">
+                              <span className="block truncate font-medium text-slate-600 dark:text-slate-300">{seg.label}</span>
+                              <span className={`block text-[11px] tabular-nums ${seg.stale ? "font-semibold text-red-500 dark:text-red-400" : "text-slate-400 dark:text-slate-500"}`}>
+                                {seg.detail}
                               </span>
-                            </div>
-                          ))}
-                        </div>
+                            </span>
+                            <span className="ml-auto flex-none font-semibold tabular-nums text-red-600 dark:text-red-400">
+                              {inr.format(seg.value)}
+                            </span>
+                          </div>
+                        ))}
                       </div>
-                    );
-                  })()}
-                  <DataTable columns={overdueColumns} rows={stats.overdueByCustomer} searchable={false} empty="Nothing overdue." />
-                </>
+                    </div>
+                  );
+                })()
               )}
             </section>
 
