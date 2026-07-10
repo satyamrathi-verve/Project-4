@@ -6,14 +6,13 @@ import { inr, inrCompact, parseISODate, todayMidnight, addCalendarDays, formatSh
 import { PageHeader } from "@/components/PageHeader";
 import { NotConfigured } from "@/components/NotConfigured";
 import { DataTable, type Column } from "@/components/DataTable";
-import { openInputClass } from "@/components/FormField";
 import { ScreenIcon } from "@/components/icons";
 import { LineChart, CHART_COLORS } from "@/components/LineChart";
 import { DonutChart } from "@/components/DonutChart";
 import { IconButton, ActionIcons } from "@/components/IconButton";
 import { CountUp } from "@/components/CountUp";
 import { Reveal } from "@/components/Reveal";
-import { StatusPill, effectiveStatus, daysOverdue, type EffectiveStatus } from "@/components/StatusPill";
+import { effectiveStatus, daysOverdue, type EffectiveStatus } from "@/components/StatusPill";
 import type { InvoiceStatus } from "@/lib/types";
 
 /*
@@ -21,14 +20,13 @@ import type { InvoiceStatus } from "@/lib/types";
   Every number (outstanding, overdue, status) uses the same rules as the Ageing
   report and Cashflow Projection so they always agree.
 
-  Reports on this screen:
+  Reports on this screen, most actionable first:
   - KPI row + DSO banner (AR health at a glance)
-  - Sales vs collections by month (are we collecting what we bill?)
-  - Total debtors month-end trend (is the receivables book growing?)
-  - Cashflow outlook: expected collections by week from open invoice due dates
-  - Sales by customer (who drives revenue) and Overdue by customer (who to chase)
-  - Invoice status breakdown, Top 5 debtors with credit-limit breach flags
-  - Recent invoices with a status filter
+  - Overdue by customer (donut of overdue share + the chase-list table)
+  - Invoice status breakdown (donut)
+  - Top 5 debtors (outstanding curve, with credit-limit breach flags)
+  - Sales by customer (donut of revenue share, top 8)
+  - Trend charts: sales vs collections, customer sales trend, total debtors, cashflow outlook
 */
 
 interface CustomerLite {
@@ -78,13 +76,28 @@ const DONUT_COLOR: Record<EffectiveStatus, string> = {
   paid: "text-emerald-500",
 };
 
+/* Per-customer donut palettes (text-* utilities → stroke via currentColor, so both themes work). */
+const CUSTOMER_DONUT_COLORS = [
+  "text-sky-500",
+  "text-violet-500",
+  "text-emerald-500",
+  "text-amber-500",
+  "text-rose-500",
+  "text-teal-500",
+  "text-indigo-500",
+  "text-fuchsia-500",
+];
+const OVERDUE_DONUT_COLORS = ["text-red-500", "text-orange-500", "text-amber-500", "text-rose-500", "text-red-400", "text-orange-400"];
+
+/* Keep customer names readable as chart axis labels. */
+const shortName = (n: string) => (n.length > 12 ? `${n.slice(0, 11)}…` : n);
+
 export default function DashboardPage() {
   const [customers, setCustomers] = useState<CustomerLite[] | null>(null);
   const [invoices, setInvoices] = useState<InvoiceRow[] | null>(null);
   const [receipts, setReceipts] = useState<ReceiptLite[] | null>(null);
   const [allocations, setAllocations] = useState<{ invoice_id: string; receipt_id: string; amount: number }[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [recentStatusFilter, setRecentStatusFilter] = useState<"all" | EffectiveStatus>("all");
   const [reloadKey, setReloadKey] = useState(0);
   const [loadedAt, setLoadedAt] = useState<Date | null>(null);
 
@@ -253,6 +266,7 @@ export default function DashboardPage() {
       overdueMap.set(i.customer_id, row);
     }
     const overdueByCustomer = Array.from(overdueMap.values()).sort((a, b) => b.amount - a.amount);
+    const overdueTotal = overdueByCustomer.reduce((s, r) => s + r.amount, 0);
 
     // ---- Status breakdown + top debtors (as before) ------------------------
     const statusStats: Record<EffectiveStatus, { count: number; amount: number }> = {
@@ -284,8 +298,6 @@ export default function DashboardPage() {
       .sort((a, b) => b.outstanding - a.outstanding)
       .slice(0, 5);
 
-    const recent = [...invoices].sort((a, b) => (a.invoice_date < b.invoice_date ? 1 : a.invoice_date > b.invoice_date ? -1 : 0));
-
     return {
       totalCustomers: customers.length,
       totalInvoices: invoices.length,
@@ -306,43 +318,11 @@ export default function DashboardPage() {
       salesByCustomer,
       salesTrendByCustomer,
       overdueByCustomer,
+      overdueTotal,
       statusStats,
       topDebtors,
-      recent,
     };
   }, [customers, invoices, receipts, allocations]);
-
-  const visibleRecent = useMemo(() => {
-    if (!stats) return [];
-    const filtered =
-      recentStatusFilter === "all"
-        ? stats.recent
-        : stats.recent.filter((r) => effectiveStatus(r.status, r.due_date) === recentStatusFilter);
-    return filtered.slice(0, 8);
-  }, [stats, recentStatusFilter]);
-
-  const recentColumns: Column<InvoiceRow>[] = [
-    {
-      key: "invoice_no",
-      header: "Invoice #",
-      render: (r) => <span className="font-medium text-brand dark:text-brand-300">{r.invoice_no}</span>,
-    },
-    { key: "customerName", header: "Customer" },
-    { key: "total", header: "Total", className: "text-right", render: (r) => inr.format(r.total), sortValue: (r) => r.total },
-    {
-      key: "status",
-      header: "Status",
-      render: (r) => (
-        <div className="flex flex-col gap-0.5">
-          <StatusPill status={r.status} dueDate={r.due_date} />
-          {effectiveStatus(r.status, r.due_date) === "overdue" && (
-            <span className="text-[11px] text-red-500 dark:text-red-400">{daysOverdue(r.due_date)}d overdue</span>
-          )}
-        </div>
-      ),
-    },
-    { key: "due_date", header: "Due Date", render: (r) => formatShortDate(r.due_date) },
-  ];
 
   const overdueColumns: Column<OverdueByCustomerRow>[] = [
     { key: "name", header: "Customer" },
@@ -433,8 +413,140 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* The four trend charts — two rows of two */}
+          {/* Most actionable first: the chase list + status mix */}
           <Reveal className="grid gap-10 border-t border-slate-200 pt-8 dark:border-slate-800 lg:grid-cols-2">
+            <section>
+              <h3 className="mb-1 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                Overdue by Customer
+              </h3>
+              <p className="mb-4 text-xs text-slate-400 dark:text-slate-500">
+                Who owes overdue money and how stale it is — your chase list, worst first.
+              </p>
+              {stats.overdueByCustomer.length === 0 ? (
+                <p className="text-sm text-slate-400 dark:text-slate-500">Nothing overdue — the book is clean. 🎉</p>
+              ) : (
+                <>
+                  {(() => {
+                    const top = stats.overdueByCustomer.slice(0, 6);
+                    const rest = stats.overdueTotal - top.reduce((s, r) => s + r.amount, 0);
+                    const segments = top.map((r, i) => ({
+                      label: r.name,
+                      value: r.amount,
+                      colorClass: OVERDUE_DONUT_COLORS[i % OVERDUE_DONUT_COLORS.length],
+                    }));
+                    if (rest > 0.005) segments.push({ label: "Others", value: rest, colorClass: "text-slate-400 dark:text-slate-500" });
+                    return (
+                      <div className="mb-5 flex flex-wrap items-center gap-8">
+                        <DonutChart segments={segments} centerValue={inrCompact(stats.overdueTotal)} centerLabel="overdue" size={140} />
+                        <div className="min-w-[190px] flex-1 space-y-2.5">
+                          {segments.map((seg) => (
+                            <div key={seg.label} className="flex items-center gap-2.5 text-xs">
+                              <span className={`h-2.5 w-2.5 flex-none rounded-full bg-current ${seg.colorClass}`} />
+                              <span className="truncate font-medium text-slate-600 dark:text-slate-300">{seg.label}</span>
+                              <span className="ml-auto flex-none font-semibold tabular-nums text-red-600 dark:text-red-400">
+                                {inr.format(seg.value)}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                  <DataTable columns={overdueColumns} rows={stats.overdueByCustomer} searchable={false} empty="Nothing overdue." />
+                </>
+              )}
+            </section>
+
+            <section>
+              <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                Invoice Status Breakdown
+              </h3>
+              <div className="flex flex-wrap items-center gap-8">
+                <DonutChart
+                  segments={STATUS_ORDER.map((s) => ({
+                    label: STATUS_LABEL[s],
+                    value: stats.statusStats[s].count,
+                    colorClass: DONUT_COLOR[s],
+                  }))}
+                  centerValue={String(stats.totalInvoices)}
+                  centerLabel="invoices"
+                />
+                <div className="min-w-[190px] flex-1 space-y-3">
+                  {STATUS_ORDER.map((s) => {
+                    const stat = stats.statusStats[s];
+                    return (
+                      <div key={s} className="flex items-center gap-2.5 text-sm">
+                        <span className={`h-2.5 w-2.5 flex-none rounded-full ${STATUS_BAR[s]}`} />
+                        <span className="font-medium text-slate-600 dark:text-slate-300">{STATUS_LABEL[s]}</span>
+                        <span className="ml-auto tabular-nums text-slate-400 dark:text-slate-500">
+                          {stat.count} · {inr.format(stat.amount)}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </section>
+          </Reveal>
+
+          {/* Who owes the most + who drives revenue */}
+          <Reveal delay={80} className="mt-8 grid gap-10 border-t border-slate-200 pt-8 dark:border-slate-800 lg:grid-cols-2">
+            <section>
+              <h3 className="mb-1 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Top 5 Debtors</h3>
+              <p className="mb-4 text-xs text-slate-400 dark:text-slate-500">
+                Outstanding per customer, biggest first — a steep drop means your risk is concentrated in one or two accounts.
+              </p>
+              {stats.topDebtors.length === 0 ? (
+                <p className="text-sm text-slate-400 dark:text-slate-500">No outstanding balances — everyone&apos;s paid up.</p>
+              ) : (
+                <>
+                  <LineChart
+                    labels={stats.topDebtors.map((d, i) => `${i + 1}. ${shortName(d.name)}`)}
+                    series={[{ name: "Outstanding", values: stats.topDebtors.map((d) => d.outstanding), color: CHART_COLORS.orange }]}
+                  />
+                  {stats.topDebtors.some((d) => d.overLimit) && (
+                    <p className="mt-2 text-xs text-red-600 dark:text-red-400">
+                      ⚠ Over credit limit: {stats.topDebtors.filter((d) => d.overLimit).map((d) => d.name).join(", ")}
+                    </p>
+                  )}
+                </>
+              )}
+            </section>
+
+            <section>
+              <h3 className="mb-1 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                Sales by Customer — top 8
+              </h3>
+              <p className="mb-4 text-xs text-slate-400 dark:text-slate-500">All-time billing share. Your revenue concentration at a glance.</p>
+              {stats.salesByCustomer.length === 0 ? (
+                <p className="text-sm text-slate-400 dark:text-slate-500">No invoices yet.</p>
+              ) : (
+                <div className="flex flex-wrap items-center gap-8">
+                  <DonutChart
+                    segments={stats.salesByCustomer.map((c, i) => ({
+                      label: c.name,
+                      value: c.amount,
+                      colorClass: CUSTOMER_DONUT_COLORS[i % CUSTOMER_DONUT_COLORS.length],
+                    }))}
+                    centerValue={inrCompact(stats.salesByCustomer.reduce((s, c) => s + c.amount, 0))}
+                    centerLabel="billed"
+                  />
+                  <div className="min-w-[190px] flex-1 space-y-2.5">
+                    {stats.salesByCustomer.map((c, i) => (
+                      <div key={c.id} className="flex items-center gap-2.5 text-xs">
+                        <span className={`h-2.5 w-2.5 flex-none rounded-full bg-current ${CUSTOMER_DONUT_COLORS[i % CUSTOMER_DONUT_COLORS.length]}`} />
+                        <span className="truncate font-medium text-slate-600 dark:text-slate-300">{c.name}</span>
+                        <span className="ml-auto flex-none font-semibold tabular-nums text-slate-600 dark:text-slate-300">{inr.format(c.amount)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </section>
+          </Reveal>
+
+          {/* The four trend charts — two rows of two */}
+          <Reveal delay={80} className="mt-8 grid gap-10 border-t border-slate-200 pt-8 dark:border-slate-800 lg:grid-cols-2">
             <section>
               <h3 className="mb-1 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                 Sales vs Collections — last 6 months
@@ -497,141 +609,6 @@ export default function DashboardPage() {
             </section>
           </Reveal>
 
-          {/* Sales by customer + overdue by customer */}
-          <Reveal delay={80} className="mt-8 grid gap-10 border-t border-slate-200 pt-8 dark:border-slate-800 lg:grid-cols-2">
-            <section>
-              <h3 className="mb-1 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                Sales by Customer — top 8
-              </h3>
-              <p className="mb-4 text-xs text-slate-400 dark:text-slate-500">All-time billing. Your revenue concentration at a glance.</p>
-              <div className="space-y-3">
-                {stats.salesByCustomer.map((c, i) => {
-                  const maxAmt = stats.salesByCustomer[0]?.amount || 1;
-                  return (
-                    <div key={c.id}>
-                      <div className="mb-1 flex items-center justify-between gap-2 text-xs">
-                        <span className="flex items-center gap-2 font-medium text-slate-700 dark:text-slate-200">
-                          <span className="w-4 flex-none text-right text-[10px] text-slate-400 dark:text-slate-500">{i + 1}.</span>
-                          {c.name}
-                        </span>
-                        <span className="flex-none font-semibold tabular-nums text-slate-600 dark:text-slate-300">{inr.format(c.amount)}</span>
-                      </div>
-                      <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
-                        <div
-                          className="h-full origin-left animate-grow-x rounded-full bg-brand dark:bg-brand-400"
-                          style={{ width: `${Math.max((c.amount / maxAmt) * 100, 2)}%`, animationDelay: `${i * 80}ms` }}
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
-
-            <section>
-              <h3 className="mb-1 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                Overdue by Customer
-              </h3>
-              <p className="mb-4 text-xs text-slate-400 dark:text-slate-500">
-                Who owes overdue money and how stale it is — your chase list, worst first.
-              </p>
-              {stats.overdueByCustomer.length === 0 ? (
-                <p className="text-sm text-slate-400 dark:text-slate-500">Nothing overdue — the book is clean. 🎉</p>
-              ) : (
-                <DataTable columns={overdueColumns} rows={stats.overdueByCustomer} searchable={false} empty="Nothing overdue." />
-              )}
-            </section>
-          </Reveal>
-
-          {/* Status breakdown + top debtors */}
-          <Reveal delay={80} className="mt-8 grid gap-10 border-t border-slate-200 pt-8 dark:border-slate-800 lg:grid-cols-2">
-            <section>
-              <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                Invoice Status Breakdown
-              </h3>
-              <div className="flex flex-wrap items-center gap-8">
-                <DonutChart
-                  segments={STATUS_ORDER.map((s) => ({
-                    label: STATUS_LABEL[s],
-                    value: stats.statusStats[s].count,
-                    colorClass: DONUT_COLOR[s],
-                  }))}
-                  centerValue={String(stats.totalInvoices)}
-                  centerLabel="invoices"
-                />
-                <div className="min-w-[190px] flex-1 space-y-3">
-                  {STATUS_ORDER.map((s) => {
-                    const stat = stats.statusStats[s];
-                    return (
-                      <div key={s} className="flex items-center gap-2.5 text-sm">
-                        <span className={`h-2.5 w-2.5 flex-none rounded-full ${STATUS_BAR[s]}`} />
-                        <span className="font-medium text-slate-600 dark:text-slate-300">{STATUS_LABEL[s]}</span>
-                        <span className="ml-auto tabular-nums text-slate-400 dark:text-slate-500">
-                          {stat.count} · {inr.format(stat.amount)}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </section>
-
-            <section>
-              <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Top 5 Debtors</h3>
-              {stats.topDebtors.length === 0 ? (
-                <p className="text-sm text-slate-400 dark:text-slate-500">No outstanding balances — everyone&apos;s paid up.</p>
-              ) : (
-                <div className="space-y-4">
-                  {stats.topDebtors.map((d, i) => {
-                    const pct = stats.totalOutstanding ? (d.outstanding / stats.totalOutstanding) * 100 : 0;
-                    return (
-                      <div key={d.id}>
-                        <div className="mb-1 flex items-center justify-between gap-2 text-xs">
-                          <span className="flex items-center gap-2 font-medium text-slate-700 dark:text-slate-200">
-                            <span className="flex h-5 w-5 flex-none items-center justify-center rounded-full bg-brand-50 text-[10px] font-bold text-brand dark:bg-brand-900/40 dark:text-brand-300">
-                              {i + 1}
-                            </span>
-                            {d.name}
-                            {d.overLimit && (
-                              <span className="rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-red-600 dark:bg-red-900/40 dark:text-red-300">
-                                Over limit
-                              </span>
-                            )}
-                          </span>
-                          <span className="flex-none font-semibold text-slate-600 dark:text-slate-300">{inr.format(d.outstanding)}</span>
-                        </div>
-                        <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
-                          <div
-                            className="h-full origin-left animate-grow-x rounded-full bg-brand dark:bg-brand-400"
-                            style={{ width: `${Math.max(pct, 2)}%`, animationDelay: `${i * 80}ms` }}
-                          />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </section>
-          </Reveal>
-
-          {/* Recent invoices */}
-          <Reveal className="mt-8 border-t border-slate-200 pt-8 dark:border-slate-800">
-            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-              <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Recent Invoices</h3>
-              <select
-                aria-label="Filter recent invoices by status"
-                className={`${openInputClass} w-auto py-1.5 text-xs`}
-                value={recentStatusFilter}
-                onChange={(e) => setRecentStatusFilter(e.target.value as "all" | EffectiveStatus)}
-              >
-                <option value="all">All statuses</option>
-                {STATUS_ORDER.map((s) => (
-                  <option key={s} value={s}>{STATUS_LABEL[s]}</option>
-                ))}
-              </select>
-            </div>
-            <DataTable columns={recentColumns} rows={visibleRecent} getRowHref={(r) => `/invoices/${r.id}`} empty="No invoices match this filter." />
-          </Reveal>
         </>
       )}
     </div>

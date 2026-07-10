@@ -9,7 +9,6 @@ import { ScreenIcon } from "@/components/icons";
 import { CountUp } from "@/components/CountUp";
 import { Reveal } from "@/components/Reveal";
 import { StatusPill } from "@/components/StatusPill";
-import { getSession } from "@/lib/auth";
 import type { InvoiceStatus } from "@/lib/types";
 
 /*
@@ -95,12 +94,6 @@ export default function HomePage() {
   const [receipts, setReceipts] = useState<{ receipt_no: string; receipt_date: string; amount: number; customerName: string }[] | null>(null);
   const [customers, setCustomers] = useState<{ name: string; credit_limit: number }[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [userName, setUserName] = useState<string>("");
-
-  useEffect(() => {
-    const s = getSession();
-    if (s) setUserName(s.charAt(0).toUpperCase() + s.slice(1));
-  }, []);
 
   useEffect(() => {
     if (!supabase) return;
@@ -207,8 +200,7 @@ export default function HomePage() {
         <div className="relative">
           <p className="text-sm text-brand-100">{todayLabel}</p>
           <h1 className="mt-1 text-3xl font-bold">
-            {greeting}
-            {userName ? `, ${userName}` : ""} 👋
+            {greeting}, Vervian 👋
           </h1>
           <p className="mt-2 max-w-xl text-sm text-brand-100">
             Here's where your receivables stand right now — and everything you can do about them.
