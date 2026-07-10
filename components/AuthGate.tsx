@@ -8,16 +8,33 @@ import { Nav } from "@/components/Nav";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { GlobalSearch } from "@/components/GlobalSearch";
 import { AskAria } from "@/components/AskAria";
-import { Toaster } from "@/components/Toast";
+import { Toaster, toast } from "@/components/Toast";
 import { ScreenIcon } from "@/components/icons";
+import { runDueRecurring } from "@/lib/recurring";
+import { inr } from "@/lib/format";
 
 /* Hides the app (nav + header) until signed in. The Sign In page renders
    full-screen with no chrome; every other route needs a session or gets bounced. */
+// Run the recurring-invoice generator once per app load (not per route change).
+let recurringRan = false;
+
 export function AuthGate({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [ready, setReady] = useState(false);
   const [signedIn, setSignedIn] = useState(false);
+
+  useEffect(() => {
+    if (!signedIn || recurringRan) return;
+    recurringRan = true;
+    runDueRecurring()
+      .then((generated) => {
+        for (const g of generated) toast(`Recurring: ${g.invoice_no} raised for ${g.customerName} (${inr.format(g.total)})`);
+      })
+      .catch(() => {
+        /* non-fatal — will try again on next app load */
+      });
+  }, [signedIn]);
 
   // Sign-in is public chrome-free; the customer portal and the email-
   // confirmation landing page both have their own Supabase Auth handling —

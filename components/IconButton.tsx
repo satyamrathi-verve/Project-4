@@ -151,6 +151,25 @@ export const ActionIcons = {
       <path d="M21 3v6h-6" />
     </I>
   ),
+  repeat: (
+    <I>
+      <path d="m17 2 4 4-4 4" />
+      <path d="M3 11v-1a4 4 0 0 1 4-4h14" />
+      <path d="m7 22-4-4 4-4" />
+      <path d="M21 13v1a4 4 0 0 1-4 4H3" />
+    </I>
+  ),
+  pause: (
+    <I>
+      <rect x="6" y="4" width="4" height="16" rx="1" />
+      <rect x="14" y="4" width="4" height="16" rx="1" />
+    </I>
+  ),
+  play: (
+    <I>
+      <polygon points="6 3 20 12 6 21 6 3" />
+    </I>
+  ),
   spinner: (
     <I spin>
       <path d="M21 12a9 9 0 1 1-6.219-8.56" />

@@ -6,7 +6,7 @@ import { inr, inrCompact, parseISODate, todayMidnight, addCalendarDays, formatSh
 import { PageHeader } from "@/components/PageHeader";
 import { NotConfigured } from "@/components/NotConfigured";
 import { DataTable, type Column } from "@/components/DataTable";
-import { inputClass } from "@/components/FormField";
+import { openInputClass } from "@/components/FormField";
 import { ScreenIcon } from "@/components/icons";
 import { LineChart, CHART_COLORS } from "@/components/LineChart";
 import { DonutChart } from "@/components/DonutChart";
@@ -620,7 +620,7 @@ export default function DashboardPage() {
               <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Recent Invoices</h3>
               <select
                 aria-label="Filter recent invoices by status"
-                className={`${inputClass} w-auto py-1.5 text-xs`}
+                className={`${openInputClass} w-auto py-1.5 text-xs`}
                 value={recentStatusFilter}
                 onChange={(e) => setRecentStatusFilter(e.target.value as "all" | EffectiveStatus)}
               >

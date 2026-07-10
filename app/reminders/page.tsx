@@ -122,7 +122,9 @@ export default function RemindersPage() {
     setCustomers((cust as Customer[]) ?? []);
     setInvoices((inv as Invoice[]) ?? []);
     setAllocations((alloc as ReceiptAllocation[]) ?? []);
-    setTemplates((tmpl as ReminderTemplate[]) ?? []);
+    // Hide recurring-invoice profiles (stored in this table under a marker
+    // prefix, managed from Sales Invoices → Recurring) from the template list.
+    setTemplates(((tmpl as ReminderTemplate[]) ?? []).filter((t) => !t.name.startsWith("[recurring]")));
     setLog((logs as ReminderLog[]) ?? []);
     setLoading(false);
   }

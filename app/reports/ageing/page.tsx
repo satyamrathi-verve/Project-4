@@ -7,7 +7,7 @@ import type { Customer, Invoice, Receipt, ReceiptAllocation, ReminderTemplate } 
 import { PageHeader } from "@/components/PageHeader";
 import { IconButton, ActionIcons } from "@/components/IconButton";
 import { NotConfigured } from "@/components/NotConfigured";
-import { FormField, inputClass } from "@/components/FormField";
+import { FormField, inputClass, openInputClass } from "@/components/FormField";
 import { EmailComposeModal } from "@/components/EmailComposeModal";
 import * as XLSX from "xlsx";
 import { jsPDF } from "jspdf";
@@ -1012,7 +1012,7 @@ export default function AgeingReportPage() {
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
                   <FormField label="As of — quick pick">
                     <select
-                      className={inputClass}
+                      className={openInputClass}
                       value={asOfPreset}
                       onChange={(e) => {
                         const key = e.target.value as keyof typeof presetDates | "custom";
@@ -1029,7 +1029,7 @@ export default function AgeingReportPage() {
                   <FormField label="As of date">
                     <input
                       type="date"
-                      className={inputClass}
+                      className={openInputClass}
                       value={asOfDate}
                       max={todayISO()}
                       onChange={(e) => setAsOfDate(e.target.value || todayISO())}
@@ -1038,14 +1038,14 @@ export default function AgeingReportPage() {
                   <FormField label="Customer">
                     <input
                       type="text"
-                      className={inputClass}
+                      className={openInputClass}
                       placeholder="Search name or code…"
                       value={search}
                       onChange={(e) => setSearch(e.target.value)}
                     />
                   </FormField>
                   <FormField label="Location">
-                    <select className={inputClass} value={locationFilter} onChange={(e) => setLocationFilter(e.target.value)}>
+                    <select className={openInputClass} value={locationFilter} onChange={(e) => setLocationFilter(e.target.value)}>
                       <option value="all">All locations</option>
                       {locations.map((l) => (
                         <option key={l} value={l}>{l}</option>
@@ -1053,7 +1053,7 @@ export default function AgeingReportPage() {
                     </select>
                   </FormField>
                   <FormField label="Bucket">
-                    <select className={inputClass} value={bucketFilter} onChange={(e) => setBucketFilter(e.target.value as "all" | Bucket)}>
+                    <select className={openInputClass} value={bucketFilter} onChange={(e) => setBucketFilter(e.target.value as "all" | Bucket)}>
                       <option value="all">All buckets</option>
                       {BUCKET_COLS.map((b) => (
                         <option key={b.key} value={b.key}>{b.header}</option>
@@ -1064,14 +1064,14 @@ export default function AgeingReportPage() {
                     <input
                       type="number"
                       min="0"
-                      className={inputClass}
+                      className={openInputClass}
                       placeholder="0"
                       value={minOutstanding}
                       onChange={(e) => setMinOutstanding(e.target.value)}
                     />
                   </FormField>
                   <FormField label="Priority">
-                    <select className={inputClass} value={priorityFilter} onChange={(e) => setPriorityFilter(e.target.value as "all" | Priority)}>
+                    <select className={openInputClass} value={priorityFilter} onChange={(e) => setPriorityFilter(e.target.value as "all" | Priority)}>
                       <option value="all">All priorities</option>
                       <option value="High">High — needs attention</option>
                       <option value="Medium">Medium</option>
@@ -1082,7 +1082,7 @@ export default function AgeingReportPage() {
                     <input
                       type="number"
                       min="0"
-                      className={inputClass}
+                      className={openInputClass}
                       placeholder="Use each customer's own limit"
                       value={creditLimitOverride}
                       onChange={(e) => setCreditLimitOverride(e.target.value)}

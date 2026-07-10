@@ -9,7 +9,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { NotConfigured } from "@/components/NotConfigured";
 import { DataTable, type Column } from "@/components/DataTable";
 import { StatusBadge } from "@/components/StatusBadge";
-import { FormField, inputClass } from "@/components/FormField";
+import { FormField, openInputClass } from "@/components/FormField";
 import { formatCurrency, formatDate, todayISO } from "@/lib/format";
 import { buildAllocationMap, paidAmount, balanceDue, displayStatus } from "@/lib/invoice";
 import { downloadCsv } from "@/lib/csv";
@@ -210,6 +210,13 @@ export default function InvoiceListPage() {
             <div className="flex flex-wrap items-center gap-2">
               <ExportButton onClick={handleExport} />
               <Link
+                href="/invoices/recurring"
+                className="flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:border-brand hover:text-brand dark:border-slate-700 dark:text-slate-300 dark:hover:border-brand-400 dark:hover:text-brand-300"
+              >
+                <span className="[&>svg]:h-4 [&>svg]:w-4">{ActionIcons.repeat}</span>
+                Recurring
+              </Link>
+              <Link
                 href="/invoices/new"
                 className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white transition-all duration-200 hover:bg-brand-700 active:scale-95"
               >
@@ -244,14 +251,14 @@ export default function InvoiceListPage() {
           <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <FormField label="Search">
               <input
-                className={inputClass}
+                className={openInputClass}
                 placeholder="Invoice number or customer…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
             </FormField>
             <FormField label="Status">
-              <select className={inputClass} value={status} onChange={(e) => setStatus(e.target.value as "all" | InvoiceStatus)}>
+              <select className={openInputClass} value={status} onChange={(e) => setStatus(e.target.value as "all" | InvoiceStatus)}>
                 {STATUS_OPTIONS.map((o) => (
                   <option key={o.value} value={o.value}>
                     {o.label}
@@ -260,16 +267,16 @@ export default function InvoiceListPage() {
               </select>
             </FormField>
             <FormField label="From date">
-              <input type="date" className={inputClass} value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+              <input type="date" className={openInputClass} value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
             </FormField>
             <FormField label="To date">
-              <input type="date" className={inputClass} value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+              <input type="date" className={openInputClass} value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
             </FormField>
             <FormField label="Min. amount (₹)">
-              <input type="number" min="0" className={inputClass} placeholder="0" value={amountMin} onChange={(e) => setAmountMin(e.target.value)} />
+              <input type="number" min="0" className={openInputClass} placeholder="0" value={amountMin} onChange={(e) => setAmountMin(e.target.value)} />
             </FormField>
             <FormField label="Max. amount (₹)">
-              <input type="number" min="0" className={inputClass} placeholder="No limit" value={amountMax} onChange={(e) => setAmountMax(e.target.value)} />
+              <input type="number" min="0" className={openInputClass} placeholder="No limit" value={amountMax} onChange={(e) => setAmountMax(e.target.value)} />
             </FormField>
           </div>
 

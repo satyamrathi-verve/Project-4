@@ -169,12 +169,12 @@ export default function CustomerMasterPage() {
               placeholder="Search by name or email…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full max-w-xs rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-brand focus:ring-1 focus:ring-brand dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+              className="w-full max-w-xs border-0 border-b border-slate-300 bg-transparent px-1 py-2 text-sm text-slate-800 outline-none transition-colors placeholder:text-slate-400 focus:border-b-2 focus:border-brand dark:border-slate-700 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-brand-400"
             />
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value as CustomerStatus | "ALL")}
-              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-brand focus:ring-1 focus:ring-brand dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+              className="border-0 border-b border-slate-300 bg-transparent py-2 pl-1 pr-7 text-sm text-slate-800 outline-none transition-colors focus:border-b-2 focus:border-brand dark:border-slate-700 dark:text-slate-100 dark:focus:border-brand-400"
             >
               {STATUS_FILTERS.map((f) => (
                 <option key={f.value} value={f.value}>{f.label}</option>

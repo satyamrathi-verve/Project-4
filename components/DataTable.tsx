@@ -119,7 +119,7 @@ export function DataTable<T extends { id: string }>({
   }
 
   const selectClass =
-    "rounded-md border border-slate-200 bg-transparent py-1.5 pl-2.5 pr-7 text-sm text-slate-600 outline-none focus:border-brand dark:border-slate-700 dark:text-slate-300";
+    "border-0 border-b border-slate-300 bg-transparent py-1.5 pl-1 pr-7 text-sm text-slate-600 outline-none transition-colors focus:border-b-2 focus:border-brand dark:border-slate-700 dark:text-slate-300 dark:focus:border-brand-400";
 
   const showToolbar = searchable || filterableCols.length > 0 || toolbar;
 
@@ -136,7 +136,7 @@ export function DataTable<T extends { id: string }>({
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder={searchPlaceholder}
-                className="w-56 rounded-md border border-slate-200 bg-transparent py-1.5 pl-8 pr-3 text-sm text-slate-700 outline-none transition-colors focus:border-brand dark:border-slate-700 dark:text-slate-200"
+                className="w-56 border-0 border-b border-slate-300 bg-transparent py-1.5 pl-8 pr-3 text-sm text-slate-700 outline-none transition-colors placeholder:text-slate-400 focus:border-b-2 focus:border-brand dark:border-slate-700 dark:text-slate-200 dark:placeholder:text-slate-500 dark:focus:border-brand-400"
               />
             </div>
           )}

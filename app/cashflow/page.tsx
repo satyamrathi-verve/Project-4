@@ -8,7 +8,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { IconButton, ActionIcons } from "@/components/IconButton";
 import { NotConfigured } from "@/components/NotConfigured";
 import { DataTable, type Column } from "@/components/DataTable";
-import { FormField, inputClass } from "@/components/FormField";
+import { FormField, inputClass, openInputClass } from "@/components/FormField";
 import { BarChart, type BarChartDatum } from "@/components/BarChart";
 import { ExportButton } from "@/components/ExportButton";
 
@@ -519,7 +519,7 @@ export default function CashflowPage() {
       {!loading && rows.length > 0 && (
         <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <FormField label="Customer">
-            <select className={inputClass} value={customerFilter} onChange={(e) => setCustomerFilter(e.target.value)}>
+            <select className={openInputClass} value={customerFilter} onChange={(e) => setCustomerFilter(e.target.value)}>
               <option value="all">All customers</option>
               {customers.map((c) => (
                 <option key={c.id} value={c.id}>{c.name}</option>
@@ -527,7 +527,7 @@ export default function CashflowPage() {
             </select>
           </FormField>
           <FormField label="Min. outstanding (₹)">
-            <input type="number" min="0" className={inputClass} placeholder="0" value={minAmount} onChange={(e) => setMinAmount(e.target.value)} />
+            <input type="number" min="0" className={openInputClass} placeholder="0" value={minAmount} onChange={(e) => setMinAmount(e.target.value)} />
           </FormField>
         </div>
       )}
