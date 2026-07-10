@@ -26,7 +26,15 @@ export async function customerSignIn(email: string, password: string): Promise<A
 
 export async function customerSignUp(email: string, password: string): Promise<AuthResult> {
   if (!supabase) return { error: "Supabase isn't configured.", hasSession: false };
-  const { data, error } = await supabase.auth.signUp({ email: email.trim(), password });
+  const { data, error } = await supabase.auth.signUp({
+    email: email.trim(),
+    password,
+    // Without this, Supabase falls back to the project's Site URL setting,
+    // which may not match wherever this app actually happens to be running
+    // (e.g. a forwarded Codespace port) — pointing it at the current origin
+    // means the confirmation link always lands back on this exact deployment.
+    options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+  });
   return { error: error?.message ?? null, hasSession: Boolean(data.session) };
 }
 

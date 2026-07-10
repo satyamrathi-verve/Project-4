@@ -17,10 +17,12 @@ export function AuthGate({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);
   const [signedIn, setSignedIn] = useState(false);
 
-  // Sign-in is public chrome-free; the customer portal has its own Supabase
-  // Auth check and its own minimal header — neither should be gated by (or
-  // redirected because of) the internal, localStorage-only session below.
-  const isBypassRoute = pathname === "/signin" || pathname.startsWith("/portal");
+  // Sign-in is public chrome-free; the customer portal and the email-
+  // confirmation landing page both have their own Supabase Auth handling —
+  // none of the three should be gated by (or redirected because of) the
+  // internal, localStorage-only session below.
+  const isBypassRoute =
+    pathname === "/signin" || pathname.startsWith("/portal") || pathname.startsWith("/auth/callback");
 
   useEffect(() => {
     if (isBypassRoute) return;
