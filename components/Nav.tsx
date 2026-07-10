@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { getSession, signOut } from "@/lib/auth";
 import { ScreenIcon } from "./icons";
 
 /*
@@ -28,14 +30,23 @@ const LINKS: { href: string; label: string; built: boolean; icon: string }[] = [
 
 export function Nav() {
   const pathname = usePathname();
+  const router = useRouter();
+  // Read after mount so the server-rendered HTML (no localStorage) matches.
+  const [username, setUsername] = useState<string | null>(null);
+  useEffect(() => setUsername(getSession()), []);
+
+  function handleSignOut() {
+    signOut();
+    router.replace("/signin");
+  }
 
   return (
-    <nav className="flex h-full w-60 flex-col gap-1 border-r border-slate-200 bg-white p-4 print:hidden dark:border-slate-800 dark:bg-slate-900">
+    <nav className="flex h-full w-60 flex-col gap-1.5 border-r border-slate-200 bg-white p-4 print:hidden dark:border-slate-800 dark:bg-slate-900">
       <div className="mb-6 px-1">
         {/* Verve Advisory logo — blue in light mode, white in dark mode */}
         <img src="/verve-logo-blue.png" alt="Verve Advisory" className="h-16 w-auto dark:hidden" />
         <img src="/verve-logo-white.png" alt="Verve Advisory" className="hidden h-16 w-auto dark:block" />
-        <h1 className="mt-3 text-base font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">
+        <h1 className="mt-3 text-xs font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400">
           AR Manager
         </h1>
       </div>
@@ -45,7 +56,7 @@ export function Nav() {
           return (
             <span
               key={l.href}
-              className="group flex cursor-default items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm text-slate-400 transition-colors dark:text-slate-500"
+              className="group flex cursor-default items-center justify-between gap-2 rounded-lg px-3 py-2.5 text-[13px] text-slate-400 transition-colors dark:text-slate-500"
             >
               <span className="flex items-center gap-2.5">
                 <ScreenIcon name={l.icon} className="h-[18px] w-[18px] flex-none opacity-60" />
@@ -61,7 +72,7 @@ export function Nav() {
           <Link
             key={l.href}
             href={l.href}
-            className={`group relative flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200 ${
+            className={`group relative flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-[13px] font-medium transition-all duration-200 ${
               active
                 ? "bg-brand text-white shadow-sm"
                 : "text-slate-700 hover:translate-x-0.5 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
@@ -78,6 +89,29 @@ export function Nav() {
           </Link>
         );
       })}
+      <div className="mt-auto border-t border-slate-200 pt-3 dark:border-slate-800">
+        {username && (
+          <div className="mb-1 flex items-center gap-2.5 px-3 py-1.5">
+            <div className="flex h-7 w-7 flex-none items-center justify-center rounded-full bg-brand/10 text-xs font-semibold uppercase text-brand dark:bg-brand-300/15 dark:text-brand-300">
+              {username[0]}
+            </div>
+            <div className="min-w-0">
+              <p className="truncate text-[13px] font-medium capitalize text-slate-700 dark:text-slate-200">{username}</p>
+              <p className="text-[11px] text-slate-400 dark:text-slate-500">Signed in</p>
+            </div>
+          </div>
+        )}
+        <button
+          onClick={handleSignOut}
+          className="group flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium text-slate-500 transition-all duration-200 hover:bg-red-50 hover:text-red-600 dark:text-slate-400 dark:hover:bg-red-950/40 dark:hover:text-red-400"
+        >
+          <ScreenIcon
+            name="signout"
+            className="h-[18px] w-[18px] flex-none transition-transform duration-200 group-hover:scale-110"
+          />
+          Sign out
+        </button>
+      </div>
     </nav>
   );
 }
