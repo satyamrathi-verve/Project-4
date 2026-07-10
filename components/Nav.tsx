@@ -11,7 +11,7 @@ import { ScreenIcon } from "./icons";
   your team builds. Each unbuilt screen shows a "build me" tag. When you finish a
   screen, flip its `built` to true (and point `href` at the route you created) so it
   turns into a real link. Sign In isn't listed here — it's the pre-auth gate, not
-  an in-app destination; Sign out lives in the top bar instead.
+  an in-app destination; Sign out is pinned at the bottom of this sidebar.
 */
 const LINKS: { href: string; label: string; built: boolean; icon: string }[] = [
   { href: "/", label: "Home", built: true, icon: "home" },
